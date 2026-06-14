@@ -15,6 +15,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Description>Shared deploy/update spine for sync servers: Discord bot, OAuth, Postgres plumbing, frozen HTTP contract.</Description>
   </PropertyGroup>
 
 </Project>

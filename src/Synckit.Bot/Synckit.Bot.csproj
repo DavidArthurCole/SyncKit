@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Description>Discord bot spine for synckit: verify, updateserver, embeds.</Description>
   </PropertyGroup>
 
   <ItemGroup>

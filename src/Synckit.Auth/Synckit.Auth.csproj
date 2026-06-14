@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Description>Discord OAuth and bearer auth for synckit.</Description>
   </PropertyGroup>
 
   <ItemGroup>
