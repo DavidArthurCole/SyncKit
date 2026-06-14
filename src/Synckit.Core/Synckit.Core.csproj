@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Synckit.Contract\Synckit.Contract.csproj" />
+    <ProjectReference Include="..\Synckit.Db\Synckit.Db.csproj" />
+    <ProjectReference Include="..\Synckit.Auth\Synckit.Auth.csproj" />
+    <ProjectReference Include="..\Synckit.Bot\Synckit.Bot.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
