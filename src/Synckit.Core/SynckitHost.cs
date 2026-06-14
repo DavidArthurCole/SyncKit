@@ -15,12 +15,12 @@ public static class SynckitHost
         var builder = WebApplication.CreateBuilder();
         var app = builder.Build();
 
+        Npgsql.NpgsqlConnection? conn = null;
         if (profile.Db is not null)
         {
-            var conn = await Database.InitAsync(profile.Db.ConnStr);
+            conn = await Database.InitAsync(profile.Db.ConnStr);
             if (!string.IsNullOrEmpty(profile.Db.MigrationsDir))
                 await Migrator.MigrateAsync(conn, profile.Db.MigrationsDir);
-            app.Lifetime.ApplicationStopping.Register(() => conn.Dispose());
         }
 
         SynckitBot? bot = null;
@@ -32,8 +32,6 @@ public static class SynckitHost
         {
             app.Logger.LogWarning(ex, "synckit: bot start failed, continuing");
         }
-        if (bot is not null)
-            app.Lifetime.ApplicationStopping.Register(() => bot.DisposeAsync().AsTask().GetAwaiter().GetResult());
 
         if (profile.Events.NewVersion is not null)
             app.MapPost("/events/new-version",
@@ -46,7 +44,19 @@ public static class SynckitHost
         var urls = addr.StartsWith(':') ? $"http://0.0.0.0{addr}" : $"http://{addr}";
 
         app.Logger.LogInformation("synckit: {Name} listening on {Addr}", profile.Name, addr);
-        await app.RunAsync(urls);
+        try
+        {
+            await app.RunAsync(urls);
+        }
+        finally
+        {
+            // RunAsync returns only after full shutdown; dispose async here instead of in a
+            // synchronous ApplicationStopping callback (avoids sync-over-async on Discord cleanup).
+            if (bot is not null)
+                await bot.DisposeAsync();
+            if (conn is not null)
+                await conn.DisposeAsync();
+        }
     }
 
     private static BotConfig MapBotConfig(AppProfile p) => new()
