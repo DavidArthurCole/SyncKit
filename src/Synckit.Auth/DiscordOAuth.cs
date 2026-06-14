@@ -58,7 +58,11 @@ public static class DiscordOAuth
         }), ct);
         tokenResp.EnsureSuccessStatusCode();
         using var tokenDoc = JsonDocument.Parse(await tokenResp.Content.ReadAsStringAsync(ct));
-        var accessToken = tokenDoc.RootElement.GetProperty("access_token").GetString()!;
+        var accessToken = tokenDoc.RootElement.TryGetProperty("access_token", out var atEl)
+            ? atEl.GetString()
+            : null;
+        if (string.IsNullOrEmpty(accessToken))
+            throw new InvalidOperationException("Discord token response missing access_token");
 
         using var meReq = new HttpRequestMessage(HttpMethod.Get, MeUrl);
         meReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
@@ -66,7 +70,9 @@ public static class DiscordOAuth
         meResp.EnsureSuccessStatusCode();
         using var meDoc = JsonDocument.Parse(await meResp.Content.ReadAsStringAsync(ct));
         var root = meDoc.RootElement;
-        var id = root.GetProperty("id").GetString()!;
+        var id = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+        if (string.IsNullOrEmpty(id))
+            throw new InvalidOperationException("Discord user response missing id");
         var username = root.TryGetProperty("username", out var u) ? u.GetString() ?? "" : "";
         var avatar = root.TryGetProperty("avatar", out var a) ? a.GetString() : null;
         var avatarUrl = string.IsNullOrEmpty(avatar)
