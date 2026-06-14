@@ -1,2 +1,8 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Synckit.Contract/Synckit.Contract.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Synckit.Contract.Tests/Synckit.Contract.Tests.csproj" />
+  </Folder>
 </Solution>
