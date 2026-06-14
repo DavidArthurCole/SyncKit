@@ -51,17 +51,29 @@ public sealed class SynckitBot : IAsyncDisposable
     public static bool NeedsRole(IReadOnlyCollection<string> memberRoles, string roleId) =>
         !memberRoles.Contains(roleId);
 
+    // Go used the raw string; a malformed snowflake should log-and-skip, not throw out of the
+    // best-effort Ready handlers. Returns false (and logs) when the id is empty or non-numeric.
+    private static bool TryParseSnowflake(string value, string label, out ulong id)
+    {
+        if (ulong.TryParse(value, out id)) return true;
+        Console.Error.WriteLine($"bot: invalid {label} snowflake: \"{value}\"");
+        return false;
+    }
+
     private async Task OnReadyAsync()
     {
-        await RegisterCommandsAsync();
-        await EnsureSharedRoleAsync();
+        try { await RegisterCommandsAsync(); }
+        catch (Exception ex) { Console.Error.WriteLine($"bot: register commands: {ex.Message}"); }
+        try { await EnsureSharedRoleAsync(); }
+        catch (Exception ex) { Console.Error.WriteLine($"bot: shared-role: {ex.Message}"); }
     }
 
     private async Task RegisterCommandsAsync()
     {
         if (string.IsNullOrEmpty(_cfg.AppId) || string.IsNullOrEmpty(_cfg.GuildId))
             return;
-        var guild = _client.GetGuild(ulong.Parse(_cfg.GuildId));
+        if (!TryParseSnowflake(_cfg.GuildId, "guild id", out var guildId)) return;
+        var guild = _client.GetGuild(guildId);
         if (guild is null) return;
 
         var verify = new SlashCommandBuilder()
@@ -80,10 +92,11 @@ public sealed class SynckitBot : IAsyncDisposable
     {
         if (string.IsNullOrEmpty(_cfg.GuildId) || string.IsNullOrEmpty(_cfg.SharedRoleId))
             return;
-        var guild = _client.GetGuild(ulong.Parse(_cfg.GuildId));
+        if (!TryParseSnowflake(_cfg.GuildId, "guild id", out var guildId)) return;
+        if (!TryParseSnowflake(_cfg.SharedRoleId, "shared role id", out var roleId)) return;
+        var guild = _client.GetGuild(guildId);
         var self = guild?.CurrentUser;
         if (self is null) return;
-        var roleId = ulong.Parse(_cfg.SharedRoleId);
         if (self.Roles.Any(r => r.Id == roleId)) return;
         var role = guild!.GetRole(roleId);
         if (role is not null)
@@ -137,9 +150,9 @@ public sealed class SynckitBot : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (!string.IsNullOrEmpty(_cfg.AppId) && !string.IsNullOrEmpty(_cfg.GuildId))
+        if (!string.IsNullOrEmpty(_cfg.AppId) && TryParseSnowflake(_cfg.GuildId, "guild id", out var guildId))
         {
-            var guild = _client.GetGuild(ulong.Parse(_cfg.GuildId));
+            var guild = _client.GetGuild(guildId);
             if (guild is not null)
                 foreach (var c in await guild.GetApplicationCommandsAsync())
                     await c.DeleteAsync();
