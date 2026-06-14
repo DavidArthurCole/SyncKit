@@ -1,11 +1,13 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Synckit.Auth/Synckit.Auth.csproj" />
+    <Project Path="src/Synckit.Bot/Synckit.Bot.csproj" />
     <Project Path="src/Synckit.Contract/Synckit.Contract.csproj" />
     <Project Path="src/Synckit.Db/Synckit.Db.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Synckit.Auth.Tests/Synckit.Auth.Tests.csproj" />
+    <Project Path="tests/Synckit.Bot.Tests/Synckit.Bot.Tests.csproj" />
     <Project Path="tests/Synckit.Contract.Tests/Synckit.Contract.Tests.csproj" />
     <Project Path="tests/Synckit.Db.Tests/Synckit.Db.Tests.csproj" />
   </Folder>
