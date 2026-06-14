@@ -19,13 +19,20 @@ public class MigratorTests
     public void MigrationFiles_OrdersByNumericPrefix_NotLexical()
     {
         var dir = Directory.CreateTempSubdirectory();
-        foreach (var n in new[] { "10_x.up.sql", "2_y.up.sql", "1_z.up.sql", "ignore.txt" })
-            File.WriteAllText(Path.Combine(dir.FullName, n), "-- sql");
+        try
+        {
+            foreach (var n in new[] { "10_x.up.sql", "2_y.up.sql", "1_z.up.sql", "ignore.txt" })
+                File.WriteAllText(Path.Combine(dir.FullName, n), "-- sql");
 
-        var files = Migrator.MigrationFiles(dir.FullName);
+            var files = Migrator.MigrationFiles(dir.FullName);
 
-        Assert.Equal(
-            new[] { "1_z.up.sql", "2_y.up.sql", "10_x.up.sql" },
-            files.Select(Path.GetFileName).ToArray());
+            Assert.Equal(
+                new[] { "1_z.up.sql", "2_y.up.sql", "10_x.up.sql" },
+                files.Select(Path.GetFileName).ToArray());
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
     }
 }
