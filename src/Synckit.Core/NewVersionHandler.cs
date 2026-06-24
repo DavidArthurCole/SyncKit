@@ -2,9 +2,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
-using Synckit.Contract;
+using SyncKit.Contract;
 
-namespace Synckit.Core;
+namespace SyncKit.Core;
 
 // Ports Go synckit.NewVersionHandler: bearer-authed POST /events/new-version. Empty secret
 // always 401. Constant-time secret compare. Decode failure 400. Handler error 500.

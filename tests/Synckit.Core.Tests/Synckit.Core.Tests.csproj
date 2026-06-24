@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -19,8 +19,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Synckit.Core\Synckit.Core.csproj" />
-    <ProjectReference Include="..\..\src\Synckit.Contract\Synckit.Contract.csproj" />
+    <ProjectReference Include="..\..\src\SyncKit.Core\SyncKit.Core.csproj" />
+    <ProjectReference Include="..\..\src\SyncKit.Contract\SyncKit.Contract.csproj" />
   </ItemGroup>
 
   <ItemGroup>

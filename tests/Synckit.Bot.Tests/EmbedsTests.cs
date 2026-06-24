@@ -1,8 +1,8 @@
-using Synckit.Bot;
-using Synckit.Contract;
+using SyncKit.Bot;
+using SyncKit.Contract;
 using Xunit;
 
-namespace Synckit.Bot.Tests;
+namespace SyncKit.Bot.Tests;
 
 public class EmbedsTests
 {

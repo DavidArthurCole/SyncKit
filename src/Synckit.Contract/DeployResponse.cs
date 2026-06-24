@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Synckit.Contract;
+namespace SyncKit.Contract;
 
 // Mirrors Go contract.DeployResponse. Field names frozen to the wire. All fields
 // except `ok` are omitempty in Go, so they serialize only when non-default here.

@@ -1,8 +1,8 @@
 using System.Text.Json;
-using Synckit.Contract;
+using SyncKit.Contract;
 using Xunit;
 
-namespace Synckit.Contract.Tests;
+namespace SyncKit.Contract.Tests;
 
 public class WireFormatTests
 {

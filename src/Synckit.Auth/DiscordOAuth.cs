@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 
-namespace Synckit.Auth;
+namespace SyncKit.Auth;
 
 // Captured Discord user fields from /users/@me.
 public sealed record DiscordUser(string Id, string Username, string AvatarUrl);

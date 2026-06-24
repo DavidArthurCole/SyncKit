@@ -1,7 +1,7 @@
 using Discord;
-using Synckit.Contract;
+using SyncKit.Contract;
 
-namespace Synckit.Bot;
+namespace SyncKit.Bot;
 
 // Ports Go bot.Config. DeployAgentUrl/Secret enable /updateserver.
 public sealed class BotConfig

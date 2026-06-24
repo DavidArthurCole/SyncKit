@@ -1,6 +1,6 @@
 using Npgsql;
 
-namespace Synckit.Db;
+namespace SyncKit.Db;
 
 // Ports Go db.Init: open and ping a Postgres connection.
 public static class Database

@@ -1,12 +1,12 @@
 using Discord;
 using Discord.WebSocket;
 
-namespace Synckit.Bot;
+namespace SyncKit.Bot;
 
 // Ports Go bot.Start + registerCommands + handleInteraction + ensureSharedRole.
 // Built-ins: /verify (public), /updateserver (Administrator-gated). Extra commands whose
 // names collide with built-ins are dropped. Guild-scoped registration.
-public sealed class SynckitBot : IAsyncDisposable
+public sealed class SyncKitBot : IAsyncDisposable
 {
     public static readonly string[] BuiltinCommandNames = { "verify", "updateserver" };
 
@@ -14,7 +14,7 @@ public sealed class SynckitBot : IAsyncDisposable
     private readonly DiscordSocketClient _client;
     private readonly Dictionary<string, Func<SocketSlashCommandContext, Task>> _extra;
 
-    private SynckitBot(BotConfig cfg, DiscordSocketClient client)
+    private SyncKitBot(BotConfig cfg, DiscordSocketClient client)
     {
         _cfg = cfg;
         _client = client;
@@ -22,7 +22,7 @@ public sealed class SynckitBot : IAsyncDisposable
     }
 
     // Returns null (a no-op bot) when Token is empty, mirroring Go's (noop, nil).
-    public static async Task<SynckitBot?> StartAsync(BotConfig cfg)
+    public static async Task<SyncKitBot?> StartAsync(BotConfig cfg)
     {
         if (string.IsNullOrEmpty(cfg.Token))
             return null;
@@ -31,7 +31,7 @@ public sealed class SynckitBot : IAsyncDisposable
         {
             GatewayIntents = GatewayIntents.Guilds,
         });
-        var bot = new SynckitBot(cfg, client);
+        var bot = new SyncKitBot(cfg, client);
 
         client.SlashCommandExecuted += bot.OnSlashCommandAsync;
         client.Ready += bot.OnReadyAsync;

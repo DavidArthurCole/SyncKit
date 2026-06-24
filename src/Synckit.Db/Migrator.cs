@@ -1,6 +1,6 @@
 using Npgsql;
 
-namespace Synckit.Db;
+namespace SyncKit.Db;
 
 // Ports Go db.MigrationFiles / prefixNum / Migrate. Tracking table is synckit_migrations
 // (version INTEGER PRIMARY KEY); applies *.up.sql files whose integer prefix exceeds the max

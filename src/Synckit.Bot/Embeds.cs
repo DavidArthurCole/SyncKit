@@ -1,6 +1,6 @@
 using Discord;
 
-namespace Synckit.Bot;
+namespace SyncKit.Bot;
 
 // Ports Go bot/embeds.go + VerifyResponse embed. Colors and titles frozen for visual parity.
 public static class Embeds

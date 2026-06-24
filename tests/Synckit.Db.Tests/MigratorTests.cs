@@ -1,7 +1,7 @@
-using Synckit.Db;
+using SyncKit.Db;
 using Xunit;
 
-namespace Synckit.Db.Tests;
+namespace SyncKit.Db.Tests;
 
 public class MigratorTests
 {

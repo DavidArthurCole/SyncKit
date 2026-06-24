@@ -1,16 +1,18 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/Synckit.Auth/Synckit.Auth.csproj" />
-    <Project Path="src/Synckit.Bot/Synckit.Bot.csproj" />
-    <Project Path="src/Synckit.Contract/Synckit.Contract.csproj" />
-    <Project Path="src/Synckit.Core/Synckit.Core.csproj" />
-    <Project Path="src/Synckit.Db/Synckit.Db.csproj" />
+    <Project Path="src/SyncKit.Agent/SyncKit.Agent.csproj" />
+    <Project Path="src/SyncKit.Auth/SyncKit.Auth.csproj" />
+    <Project Path="src/SyncKit.Bot/SyncKit.Bot.csproj" />
+    <Project Path="src/SyncKit.Contract/SyncKit.Contract.csproj" />
+    <Project Path="src/SyncKit.Core/SyncKit.Core.csproj" />
+    <Project Path="src/SyncKit.Db/SyncKit.Db.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Synckit.Auth.Tests/Synckit.Auth.Tests.csproj" />
-    <Project Path="tests/Synckit.Bot.Tests/Synckit.Bot.Tests.csproj" />
-    <Project Path="tests/Synckit.Contract.Tests/Synckit.Contract.Tests.csproj" />
-    <Project Path="tests/Synckit.Core.Tests/Synckit.Core.Tests.csproj" />
-    <Project Path="tests/Synckit.Db.Tests/Synckit.Db.Tests.csproj" />
+    <Project Path="tests/SyncKit.Agent.Tests/SyncKit.Agent.Tests.csproj" />
+    <Project Path="tests/SyncKit.Auth.Tests/SyncKit.Auth.Tests.csproj" />
+    <Project Path="tests/SyncKit.Bot.Tests/SyncKit.Bot.Tests.csproj" />
+    <Project Path="tests/SyncKit.Contract.Tests/SyncKit.Contract.Tests.csproj" />
+    <Project Path="tests/SyncKit.Core.Tests/SyncKit.Core.Tests.csproj" />
+    <Project Path="tests/SyncKit.Db.Tests/SyncKit.Db.Tests.csproj" />
   </Folder>
 </Solution>

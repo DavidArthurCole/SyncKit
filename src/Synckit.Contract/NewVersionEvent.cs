@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Synckit.Contract;
+namespace SyncKit.Contract;
 
 // Mirrors the device-farm wire shape. The Go contract.NewVersionEvent has only the
 // first five fields; EggIncognito's farm emits a SUPERSET. This C# port carries the

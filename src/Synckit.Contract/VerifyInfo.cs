@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Synckit.Contract;
+namespace SyncKit.Contract;
 
 // Mirrors Go contract.VerifyInfo. All four fields always serialize (no omitempty in Go).
 public sealed class VerifyInfo

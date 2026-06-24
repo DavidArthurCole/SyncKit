@@ -1,7 +1,7 @@
-using Synckit.Bot;
+using SyncKit.Bot;
 using Xunit;
 
-namespace Synckit.Bot.Tests;
+namespace SyncKit.Bot.Tests;
 
 public class DeployAgentClientTests
 {

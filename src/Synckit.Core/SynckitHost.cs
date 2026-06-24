@@ -1,14 +1,14 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Synckit.Bot;
-using Synckit.Db;
+using SyncKit.Bot;
+using SyncKit.Db;
 
-namespace Synckit.Core;
+namespace SyncKit.Core;
 
 // Ports Go synckit.Run: optional DB init+migrate, start bot (best-effort), wire the
 // new-version route, listen on LISTEN_ADDR (default :8080), block until shutdown.
-public static class SynckitHost
+public static class SyncKitHost
 {
     public static async Task RunAsync(AppProfile profile, Action<WebApplication>? configureRoutes = null)
     {
@@ -23,10 +23,10 @@ public static class SynckitHost
                 await Migrator.MigrateAsync(conn, profile.Db.MigrationsDir);
         }
 
-        SynckitBot? bot = null;
+        SyncKitBot? bot = null;
         try
         {
-            bot = await SynckitBot.StartAsync(MapBotConfig(profile));
+            bot = await SyncKitBot.StartAsync(MapBotConfig(profile));
         }
         catch (Exception ex)
         {

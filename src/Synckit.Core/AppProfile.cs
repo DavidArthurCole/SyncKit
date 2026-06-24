@@ -1,7 +1,7 @@
-using Synckit.Bot;
-using Synckit.Contract;
+using SyncKit.Bot;
+using SyncKit.Contract;
 
-namespace Synckit.Core;
+namespace SyncKit.Core;
 
 // Ports Go synckit.AppProfile + DiscordConfig + AgentRef + DBConfig + EventHandlers.
 public sealed class AppProfile

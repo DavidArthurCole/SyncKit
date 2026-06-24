@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Http;
 
-namespace Synckit.Auth;
+namespace SyncKit.Auth;
 
 // Seam over the consumer's sessions table. Returns (found, discordId, expiresAt unix seconds).
 public interface ISessionStore

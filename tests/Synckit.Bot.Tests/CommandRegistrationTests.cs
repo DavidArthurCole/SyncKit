@@ -1,15 +1,15 @@
 using Discord;
-using Synckit.Bot;
+using SyncKit.Bot;
 using Xunit;
 
-namespace Synckit.Bot.Tests;
+namespace SyncKit.Bot.Tests;
 
 public class CommandRegistrationTests
 {
     [Fact]
     public void BuiltinCommandNames_AreVerifyAndUpdateserver()
     {
-        Assert.Equal(new[] { "verify", "updateserver" }, SynckitBot.BuiltinCommandNames);
+        Assert.Equal(new[] { "verify", "updateserver" }, SyncKitBot.BuiltinCommandNames);
     }
 
     [Fact]
@@ -21,7 +21,7 @@ public class CommandRegistrationTests
             MakeCmd("mystats"),    // kept
             MakeCmd("updateserver"), // collides, dropped
         };
-        var kept = SynckitBot.FilterExtras(extras).Select(c => c.Name).ToArray();
+        var kept = SyncKitBot.FilterExtras(extras).Select(c => c.Name).ToArray();
         Assert.Equal(new[] { "mystats" }, kept);
     }
 
@@ -30,7 +30,7 @@ public class CommandRegistrationTests
     [InlineData(new[] { "a", "b" }, "b", false)]  // role present -> no-op
     public void NeedsRole_DetectsAbsence(string[] memberRoles, string roleId, bool expected)
     {
-        Assert.Equal(expected, SynckitBot.NeedsRole(memberRoles, roleId));
+        Assert.Equal(expected, SyncKitBot.NeedsRole(memberRoles, roleId));
     }
 
     private static BotCommand MakeCmd(string name) =>

@@ -1,8 +1,8 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
-using Synckit.Contract;
+using SyncKit.Contract;
 
-namespace Synckit.Bot;
+namespace SyncKit.Bot;
 
 // Ports Go bot.callDeployAgent. POST {url} with bearer secret, 120s timeout. Non-200 and
 // decode failures map to a DeployResponse carrying a human Tail (never throws to the caller).

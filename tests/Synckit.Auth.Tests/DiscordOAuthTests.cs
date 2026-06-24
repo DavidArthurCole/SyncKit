@@ -1,7 +1,7 @@
-using Synckit.Auth;
+using SyncKit.Auth;
 using Xunit;
 
-namespace Synckit.Auth.Tests;
+namespace SyncKit.Auth.Tests;
 
 public class DiscordOAuthTests
 {

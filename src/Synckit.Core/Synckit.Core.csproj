@@ -1,10 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\Synckit.Contract\Synckit.Contract.csproj" />
-    <ProjectReference Include="..\Synckit.Db\Synckit.Db.csproj" />
-    <ProjectReference Include="..\Synckit.Auth\Synckit.Auth.csproj" />
-    <ProjectReference Include="..\Synckit.Bot\Synckit.Bot.csproj" />
+    <ProjectReference Include="..\SyncKit.Contract\SyncKit.Contract.csproj" />
+    <ProjectReference Include="..\SyncKit.Db\SyncKit.Db.csproj" />
+    <ProjectReference Include="..\SyncKit.Auth\SyncKit.Auth.csproj" />
+    <ProjectReference Include="..\SyncKit.Bot\SyncKit.Bot.csproj" />
   </ItemGroup>
 
   <ItemGroup>

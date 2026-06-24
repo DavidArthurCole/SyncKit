@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  # Pack the SyncKit.* libraries and publish them to GitHub Packages. The Agent host is
+  # IsPackable=false, so only the consumable libs ship. Version comes from Directory.Build.props;
+  # the tag is expected to match (e.g. tag v0.2.0-preview.1 for Version 0.2.0-preview.1).
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - run: dotnet test SyncKit.slnx -c Release
+
+      - name: Pack libraries
+        run: dotnet pack SyncKit.slnx -c Release -o nupkgs
+
+      # GITHUB_TOKEN is scoped to this repo's packages; no PAT needed.
+      - name: Push to GitHub Packages
+        run: |
+          dotnet nuget push "nupkgs/*.nupkg" \
+            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            --api-key "${{ secrets.GITHUB_TOKEN }}" \
+            --skip-duplicate
