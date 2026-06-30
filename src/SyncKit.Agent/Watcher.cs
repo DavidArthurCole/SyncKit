@@ -43,17 +43,32 @@ public sealed class Watcher(string name, TimeSpan interval, string webhookUrl, F
     {
         if (res.Ok && res.AlreadyUpToDate) { _lastFail = ""; return null; }
         if (res.Ok) { _lastFail = ""; return Payload(SuccessEmbed(res)); }
-        // Docker daemon down (host stopped Docker) is infra-not-running, not a deploy failure. Stay silent
-        // and leave _lastFail untouched so a genuine failure once Docker returns still posts.
-        if (IsDockerDown(res.Tail)) return null;
+        // Transient infra/network failures (Docker daemon down, GHCR/registry timeouts) are not deploy
+        // failures the user can act on. Stay silent and leave _lastFail untouched so a genuine build
+        // failure once infra recovers still posts.
+        if (IsTransient(res.Tail)) return null;
         if (res.Tail == _lastFail) return null;
         _lastFail = res.Tail ?? "";
         return Payload(FailureEmbed(res));
     }
 
-    // Matches the daemon-unreachable message from any docker/compose CLI call in the tail.
-    internal static bool IsDockerDown(string? tail) =>
-        tail is not null && tail.Contains("Cannot connect to the Docker daemon", StringComparison.Ordinal);
+    // Substrings that mark an infra/network hiccup rather than an actionable deploy failure. Matched
+    // anywhere in the tail because docker/compose/pull errors nest the cause inside wrapper text.
+    private static readonly string[] TransientMarkers =
+    {
+        "Cannot connect to the Docker daemon", // host stopped Docker
+        "context deadline exceeded",           // GHCR/registry pull timed out (the spam we saw)
+        "Client.Timeout exceeded",             // Go http client timeout wrapper
+        "TLS handshake timeout",
+        "connection refused",
+        "no such host",                        // DNS hiccup resolving the registry
+        "i/o timeout",
+        "temporary failure in name resolution",
+    };
+
+    // True when the tail looks like a transient infra/network error (registry unreachable, daemon down).
+    internal static bool IsTransient(string? tail) =>
+        tail is not null && TransientMarkers.Any(m => tail.Contains(m, StringComparison.OrdinalIgnoreCase));
 
     private string Payload(object embed)
     {
