@@ -174,6 +174,9 @@ public sealed class Shell : IStep
 {
     public string Run { get; set; } = "";
     public string Dir { get; set; } = "";
+    public bool Always { get; set; }
+
+    public bool RunOnShortCircuit => Always;
 
     public string? Exec(RunContext c)
     {

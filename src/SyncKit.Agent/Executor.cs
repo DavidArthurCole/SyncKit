@@ -18,6 +18,11 @@ public sealed class Executor
         var c = new RunContext { Repo = Repo, RepoUrl = RepoUrl, Run = Runner };
         foreach (var step in Steps)
         {
+            // Once a pull step finds nothing new, skip the rest of the pipeline except steps that
+            // opted into running anyway (e.g. a shell step redeploying something the pull doesn't
+            // gate, like a sibling binary built from the same repo).
+            if (c.ShortCircuit && !step.RunOnShortCircuit) continue;
+
             var err = step.Exec(c);
             if (err is not null)
             {
@@ -29,14 +34,12 @@ public sealed class Executor
                     Tail = TailLines(c.Out.ToString(), 20),
                 };
             }
-            if (c.ShortCircuit)
-                return new DeployResponse
-                {
-                    Ok = true, AlreadyUpToDate = true,
-                    FromHash = c.FromHash, ToHash = c.ToHash, FromUrl = c.FromUrl, ToUrl = c.ToUrl,
-                };
         }
-        return new DeployResponse { Ok = true, FromHash = c.FromHash, ToHash = c.ToHash, FromUrl = c.FromUrl, ToUrl = c.ToUrl };
+        return new DeployResponse
+        {
+            Ok = true, AlreadyUpToDate = c.ShortCircuit,
+            FromHash = c.FromHash, ToHash = c.ToHash, FromUrl = c.FromUrl, ToUrl = c.ToUrl,
+        };
     }
 
     // Runs a command, returns (combined stdout+stderr, exitCode==0). Never throws: a spawn failure

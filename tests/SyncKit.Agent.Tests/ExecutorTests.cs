@@ -6,9 +6,10 @@ public class ExecutorTests
 {
     // A step that records it ran and optionally fails / short-circuits, so pipeline flow is testable
     // without real commands.
-    private sealed class FakeStep(string? error = null, bool shortCircuit = false) : IStep
+    private sealed class FakeStep(string? error = null, bool shortCircuit = false, bool runOnShortCircuit = false) : IStep
     {
         public bool Ran { get; private set; }
+        public bool RunOnShortCircuit => runOnShortCircuit;
         public string? Exec(RunContext c)
         {
             Ran = true;
@@ -49,6 +50,19 @@ public class ExecutorTests
         Assert.True(res.Ok);
         Assert.True(res.AlreadyUpToDate);
         Assert.False(s2.Ran);
+    }
+
+    [Fact]
+    public void Run_ShortCircuit_StillRunsOptedInStep()
+    {
+        var s1 = new FakeStep(shortCircuit: true);
+        var s2 = new FakeStep();
+        var s3 = new FakeStep(runOnShortCircuit: true);
+        var res = new Executor { Steps = [s1, s2, s3], Runner = NoRun }.Run();
+        Assert.True(res.Ok);
+        Assert.True(res.AlreadyUpToDate);
+        Assert.False(s2.Ran);
+        Assert.True(s3.Ran);
     }
 
     [Fact]

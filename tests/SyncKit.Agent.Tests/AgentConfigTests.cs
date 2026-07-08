@@ -53,6 +53,22 @@ public class AgentConfigTests
     }
 
     [Fact]
+    public void Parse_ShellStep_AlwaysTrue_SetsRunOnShortCircuit()
+    {
+        var cfg = AgentConfig.Parse("name: t\nsteps:\n  - shell: { run: echo hi, always: true }\n");
+        var step = Assert.IsType<Shell>(cfg.Steps[0]);
+        Assert.True(step.RunOnShortCircuit);
+    }
+
+    [Fact]
+    public void Parse_ShellStep_AlwaysOmitted_DefaultsFalse()
+    {
+        var cfg = AgentConfig.Parse("name: t\nsteps:\n  - shell: { run: echo hi }\n");
+        var step = Assert.IsType<Shell>(cfg.Steps[0]);
+        Assert.False(step.RunOnShortCircuit);
+    }
+
+    [Fact]
     public void Parse_UnknownStep_Throws() =>
         Assert.Throws<FormatException>(() => AgentConfig.Parse("name: t\nsteps:\n  - bogus-step\n"));
 
