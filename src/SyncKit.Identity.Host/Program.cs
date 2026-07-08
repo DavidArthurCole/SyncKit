@@ -8,11 +8,11 @@ var connString = Environment.GetEnvironmentVariable("IDENTITY_DB_CONNECTION")
     ?? throw new InvalidOperationException("IDENTITY_DB_CONNECTION is required");
 var apiSecret = Environment.GetEnvironmentVariable("IDENTITY_API_SECRET")
     ?? throw new InvalidOperationException("IDENTITY_API_SECRET is required");
-var listenAddr = Environment.GetEnvironmentVariable("LISTEN_ADDR") ?? ":8090";
+var port = Environment.GetEnvironmentVariable("IDENTITY_API_PORT") ?? "8090";
 var adminIds = Environment.GetEnvironmentVariable("IDENTITY_ADMIN_DISCORD_IDS");
 
 var builder = WebApplication.CreateBuilder(args);
-builder.WebHost.UseUrls(listenAddr.StartsWith(':') ? $"http://0.0.0.0{listenAddr}" : $"http://{listenAddr}");
+builder.WebHost.UseUrls($"http://*:{port}");
 
 var dataSource = NpgsqlDataSource.Create(connString);
 builder.Services.AddSingleton(dataSource);
