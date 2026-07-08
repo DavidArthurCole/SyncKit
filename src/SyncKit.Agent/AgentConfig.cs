@@ -35,7 +35,11 @@ public sealed class AgentConfig
             var interval = ParseDuration(intervalStr);
             if (interval <= TimeSpan.Zero)
                 throw new FormatException($"watch.interval must be positive, got {intervalStr}");
-            watch = new WatchConfig(interval, Scalar(TryGet(w, "notify_webhook_env")) ?? "");
+            watch = new WatchConfig(
+                interval,
+                Scalar(TryGet(w, "notify_webhook_env")) ?? "",
+                Scalar(TryGet(w, "notify_channel_guild_id")) ?? "",
+                Scalar(TryGet(w, "notify_channel_app_name")) ?? "");
         }
 
         return new AgentConfig
@@ -120,4 +124,10 @@ public sealed class AgentConfig
     }
 }
 
-public sealed record WatchConfig(TimeSpan Interval, string NotifyWebhookEnv);
+// NotifyChannelGuildId/AppName, when both set, resolve the webhook URL from ChannelHub's
+// bot_channel_state row (thread:DeployNotifications:webhook) instead of NotifyWebhookEnv.
+public sealed record WatchConfig(
+    TimeSpan Interval,
+    string NotifyWebhookEnv,
+    string NotifyChannelGuildId = "",
+    string NotifyChannelAppName = "");

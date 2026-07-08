@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Description>Minimal API host exposing SyncKit.Identity over HTTP: resolve/get/merge/revoke/admin-role. Bearer-secret-gated, server-to-server only.</Description>
+    <RootNamespace>SyncKit.Identity.Host</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SyncKit.Identity\SyncKit.Identity.csproj" />
+    <ProjectReference Include="..\SyncKit.Db\SyncKit.Db.csproj" />
+    <ProjectReference Include="..\SyncKit.Contract\SyncKit.Contract.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\SyncKit.Identity\Migrations\*.up.sql" Link="Migrations\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

@@ -7,9 +7,18 @@ namespace SyncKit.Agent;
 // Polls the deploy pipeline on an interval and posts Discord webhook embeds on change. Up-to-date is
 // silent; a deploy posts green; a failure posts red once per distinct tail (reset on any non-failure)
 // so a broken pipeline does not spam every tick. Mirrors the Go Watcher.
-public sealed class Watcher(string name, TimeSpan interval, string webhookUrl, Func<(DeployResponse, bool)> tryRun)
+//
+// resolveWebhookUrl is called fresh on every tick that needs to notify (not cached at construction)
+// so it can back onto ChannelHub's DB-stored per-thread webhook, which can be created/rotated/torn
+// down at runtime without restarting the agent. Return "" to notify nowhere this tick.
+public sealed class Watcher(string name, TimeSpan interval, Func<string> resolveWebhookUrl, Func<(DeployResponse, bool)> tryRun)
 {
     private string _lastFail = "";
+
+    public Watcher(string name, TimeSpan interval, string webhookUrl, Func<(DeployResponse, bool)> tryRun)
+        : this(name, interval, () => webhookUrl, tryRun)
+    {
+    }
 
     public async Task RunAsync(CancellationToken ct)
     {
@@ -28,7 +37,8 @@ public sealed class Watcher(string name, TimeSpan interval, string webhookUrl, F
         if (!ran) return; // a manual deploy holds the lock; skip this tick
         var payload = Decide(res);
         if (payload is null) return;
-        if (webhookUrl == "") return;
+        var webhookUrl = resolveWebhookUrl();
+        if (string.IsNullOrEmpty(webhookUrl)) return;
         try
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };

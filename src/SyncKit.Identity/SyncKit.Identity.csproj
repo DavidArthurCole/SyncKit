@@ -4,16 +4,14 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Description>Discord bot spine for synckit: verify, updateserver, embeds.</Description>
+    <Description>Shared identity/auth data model and resolver for synckit: users, identities, role, revoked sessions. Raw Npgsql, migrated via SyncKit.Db.Migrator (no EF Core, matching the rest of the solution).</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Discord.Net" Version="3.20.1" />
     <PackageReference Include="Npgsql" Version="10.0.3" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\SyncKit.Contract\SyncKit.Contract.csproj" />
     <ProjectReference Include="..\SyncKit.Db\SyncKit.Db.csproj" />
   </ItemGroup>
 

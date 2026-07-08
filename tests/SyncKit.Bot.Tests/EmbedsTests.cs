@@ -51,4 +51,39 @@ public class EmbedsTests
         Assert.Contains(e.Fields, f => f.Name == "Version");
         Assert.Contains(e.Fields, f => f.Name == "Built" && f.Value.ToString() == "2026-06-14");
     }
+
+    [Fact]
+    public void Dashboard_RendersCoreFields()
+    {
+        var snapshot = new DashboardSnapshot
+        {
+            AppName = "EggLedger",
+            Version = "v1.2.3",
+            BuildHash = "abc1234",
+            DeployStatus = "healthy",
+            UptimeSince = DateTimeOffset.UtcNow,
+            RepoUrl = "https://github.com/x/y",
+            ExtraFields = new Dictionary<string, string> { ["Region"] = "us-east" },
+        };
+
+        var e = Embeds.Dashboard(snapshot);
+
+        Assert.Equal("EggLedger", e.Title);
+        Assert.Contains(e.Fields, f => f.Name == "Version" && f.Value.ToString() == "v1.2.3");
+        Assert.Contains(e.Fields, f => f.Name == "Status" && f.Value.ToString() == "healthy");
+        Assert.Contains(e.Fields, f => f.Name == "Build" && f.Value.ToString()!.Contains("abc1234"));
+        Assert.Contains(e.Fields, f => f.Name == "Region" && f.Value.ToString() == "us-east");
+    }
+
+    [Fact]
+    public void Dashboard_MissingOptionalFields_OmitsThem()
+    {
+        var snapshot = new DashboardSnapshot { AppName = "EggLedger", UptimeSince = DateTimeOffset.UtcNow };
+
+        var e = Embeds.Dashboard(snapshot);
+
+        Assert.DoesNotContain(e.Fields, f => f.Name == "Build");
+        Assert.DoesNotContain(e.Fields, f => f.Name == "Repo");
+        Assert.Contains(e.Fields, f => f.Name == "Version" && f.Value.ToString() == "unknown");
+    }
 }

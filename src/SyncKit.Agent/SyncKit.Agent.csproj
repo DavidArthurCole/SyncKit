@@ -17,10 +17,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SyncKit.Contract\SyncKit.Contract.csproj" />
+    <ProjectReference Include="..\SyncKit.Bot\SyncKit.Bot.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="YamlDotNet" Version="16.2.1" />
+    <PackageReference Include="Npgsql" Version="10.0.3" />
   </ItemGroup>
 
   <ItemGroup>

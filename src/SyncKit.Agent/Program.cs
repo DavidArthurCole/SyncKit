@@ -12,7 +12,9 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
+using Npgsql;
 using SyncKit.Agent;
+using SyncKit.Bot;
 
 var secret = Environment.GetEnvironmentVariable("DEPLOY_AGENT_SECRET");
 if (string.IsNullOrEmpty(secret))
@@ -59,11 +61,8 @@ app.MapPost("/deploy", (HttpRequest req) =>
 
 if (cfg.Watch is { } watch)
 {
-    var webhookUrl = watch.NotifyWebhookEnv != ""
-        ? Environment.GetEnvironmentVariable(watch.NotifyWebhookEnv) ?? "" : "";
-    if (watch.NotifyWebhookEnv != "" && webhookUrl == "")
-        Console.WriteLine($"synckit-agent: {watch.NotifyWebhookEnv} unset, watcher will deploy silently");
-    var watcher = new Watcher(cfg.Name, watch.Interval, webhookUrl, handler.TryRun);
+    var resolveWebhookUrl = BuildWebhookResolver(watch);
+    var watcher = new Watcher(cfg.Name, watch.Interval, resolveWebhookUrl, handler.TryRun);
     _ = watcher.RunAsync(app.Lifetime.ApplicationStopping);
     Console.WriteLine($"synckit-agent: watching every {watch.Interval}");
 }
@@ -71,3 +70,39 @@ if (cfg.Watch is { } watch)
 Console.WriteLine($"synckit-agent: {cfg.Name} listening on :{port} ({cfg.Steps.Count} steps)");
 app.Run();
 return 0;
+
+// Prefers ChannelHub's DB-stored per-thread webhook (created/rotated by SyncKit.Bot itself) over the
+// legacy fixed env-var webhook. Falls back to the env var when guild/app aren't configured for the
+// DB path, and to "" (silent) when neither resolves - matching today's opt-in behavior exactly.
+static Func<string> BuildWebhookResolver(WatchConfig watch)
+{
+    var dbConn = Environment.GetEnvironmentVariable("IDENTITY_DB_CONNECTION");
+    var envWebhookUrl = watch.NotifyWebhookEnv != ""
+        ? Environment.GetEnvironmentVariable(watch.NotifyWebhookEnv) ?? "" : "";
+
+    if (watch.NotifyChannelGuildId == "" || watch.NotifyChannelAppName == "" || string.IsNullOrEmpty(dbConn))
+    {
+        if (watch.NotifyWebhookEnv != "" && envWebhookUrl == "")
+            Console.WriteLine($"synckit-agent: {watch.NotifyWebhookEnv} unset, watcher will deploy silently");
+        return () => envWebhookUrl;
+    }
+
+    var store = new ChannelStateStore(NpgsqlDataSource.Create(dbConn));
+    return () =>
+    {
+        try
+        {
+            var webhook = store.GetAsync(watch.NotifyChannelGuildId, watch.NotifyChannelAppName,
+                "thread:DeployNotifications:webhook", CancellationToken.None).GetAwaiter().GetResult();
+            var thread = store.GetAsync(watch.NotifyChannelGuildId, watch.NotifyChannelAppName,
+                "thread:DeployNotifications", CancellationToken.None).GetAwaiter().GetResult();
+            if (webhook is null || thread is null) return envWebhookUrl;
+            return $"https://discord.com/api/webhooks/{webhook.DiscordId}/{webhook.WebhookToken}?thread_id={thread.DiscordId}";
+        }
+        catch (Exception e)
+        {
+            Console.Error.WriteLine($"synckit-agent: resolve deploy webhook: {e.Message}");
+            return envWebhookUrl;
+        }
+    };
+}

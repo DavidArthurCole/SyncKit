@@ -39,6 +39,10 @@ public static class Migrator
             var v = PrefixNum(f);
             if (v <= current) continue;
             var sql = await File.ReadAllTextAsync(f, ct);
+
+            // One transaction per file: a kill mid-migration rolls back completely instead
+            // of leaving partial DDL committed for the next boot attempt to collide with.
+            await using var tx = await conn.BeginTransactionAsync(ct);
             await using (var exec = new NpgsqlCommand(sql, conn))
                 await exec.ExecuteNonQueryAsync(ct);
             await using (var rec = new NpgsqlCommand(
@@ -47,6 +51,7 @@ public static class Migrator
                 rec.Parameters.Add(new NpgsqlParameter { Value = v });
                 await rec.ExecuteNonQueryAsync(ct);
             }
+            await tx.CommitAsync(ct);
         }
     }
 }

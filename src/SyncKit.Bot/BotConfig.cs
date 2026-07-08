@@ -17,6 +17,12 @@ public sealed class BotConfig
     public string SharedRoleId { get; init; } = "";
     public IReadOnlyList<BotCommand> Extra { get; init; } = Array.Empty<BotCommand>();
 
+    // ChannelHub is enabled only when DashboardChannelId is set. EnabledThreads is a CSV of
+    // ThreadKind names; unset/empty = all threads off (see ThreadKinds.ParseCsv).
+    public string DashboardChannelId { get; init; } = "";
+    public string EnabledThreads { get; init; } = "";
+    public string PostgresConnectionString { get; init; } = "";
+
     public string CommitUrl(string version) => $"{RepoUrl}/commit/{version}";
 }
 

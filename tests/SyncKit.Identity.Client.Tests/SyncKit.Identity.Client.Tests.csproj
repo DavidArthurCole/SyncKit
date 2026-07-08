@@ -19,17 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Npgsql" Version="10.0.3" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\SyncKit.Bot\SyncKit.Bot.csproj" />
-    <ProjectReference Include="..\..\src\SyncKit.Contract\SyncKit.Contract.csproj" />
-    <ProjectReference Include="..\..\src\SyncKit.Db\SyncKit.Db.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="..\..\src\SyncKit.Bot\Migrations\*.up.sql" Link="Migrations\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <ProjectReference Include="..\..\src\SyncKit.Identity.Client\SyncKit.Identity.Client.csproj" />
   </ItemGroup>
 
 </Project>
