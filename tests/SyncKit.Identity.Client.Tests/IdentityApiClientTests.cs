@@ -45,7 +45,7 @@ public class IdentityApiClientTests
     {
         var (client, _) = MakeClient(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(true) });
 
-        var result = await client.IsRevokedAsync(Guid.NewGuid(), "sid-1", CancellationToken.None);
+        var result = await client.IsRevokedAsync("sid-1", CancellationToken.None);
 
         Assert.True(result);
     }

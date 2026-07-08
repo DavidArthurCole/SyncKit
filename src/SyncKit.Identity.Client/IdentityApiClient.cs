@@ -33,15 +33,15 @@ public sealed class IdentityApiClient(HttpClient http)
         return (await resp.Content.ReadFromJsonAsync<List<IdentityUserResponse>>(cancellationToken: ct))!;
     }
 
-    public async Task RevokeSessionAsync(Guid userId, string sid, CancellationToken ct)
+    public async Task RevokeSessionAsync(string sid, CancellationToken ct)
     {
-        var resp = await http.PostAsJsonAsync($"/identity/{userId}/revoke-session", new RevokeSessionRequest { Sid = sid }, ct);
+        var resp = await http.PostAsJsonAsync("/identity/revoke-session", new RevokeSessionRequest { Sid = sid }, ct);
         resp.EnsureSuccessStatusCode();
     }
 
-    public async Task<bool> IsRevokedAsync(Guid userId, string sid, CancellationToken ct)
+    public async Task<bool> IsRevokedAsync(string sid, CancellationToken ct)
     {
-        var resp = await http.GetAsync($"/identity/{userId}/sessions/{sid}/revoked", ct);
+        var resp = await http.GetAsync($"/identity/sessions/{sid}/revoked", ct);
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<bool>(cancellationToken: ct));
     }

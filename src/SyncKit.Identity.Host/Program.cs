@@ -57,13 +57,16 @@ app.MapGet("/identity/{userId:guid}", async (Guid userId, UserQueries users, Can
     return Results.Ok(ToResponse(user));
 });
 
-app.MapPost("/identity/{userId:guid}/revoke-session", async (Guid userId, RevokeSessionRequest req, RevocationStore store, CancellationToken ct) =>
+// Session revocation is sid-keyed only (revoked_sessions has no user_id column) - no userId in
+// these routes; back-channel logout tokens only ever carry a sid, never a user_id, so requiring
+// one here would force every caller into an unnecessary extra lookup.
+app.MapPost("/identity/revoke-session", async (RevokeSessionRequest req, RevocationStore store, CancellationToken ct) =>
 {
     await store.RevokeAsync(req.Sid, ct);
     return Results.NoContent();
 });
 
-app.MapGet("/identity/{userId:guid}/sessions/{sid}/revoked", async (Guid userId, string sid, RevocationStore store, CancellationToken ct) =>
+app.MapGet("/identity/sessions/{sid}/revoked", async (string sid, RevocationStore store, CancellationToken ct) =>
     Results.Ok(await store.IsRevokedAsync(sid, ct)));
 
 app.MapPost("/identity/merge", async (MergeUsersRequest req, IdentityResolver resolver, CancellationToken ct) =>
