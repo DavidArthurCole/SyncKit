@@ -39,3 +39,40 @@ jobs:
             --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
             --api-key "${{ secrets.GITHUB_TOKEN }}" \
             --skip-duplicate
+
+  # Build+push the identity host image. Context is repo root since the Dockerfile
+  # needs the whole solution for its ProjectReferences.
+  docker-identity-host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # GITHUB_TOKEN is scoped to this repo's packages; no PAT needed.
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/SyncKit.Identity.Host/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/davidarthurcole/synckit-identity:${{ github.ref_name }}
+            ghcr.io/davidarthurcole/synckit-identity:latest
+
+  # Dogfood: SyncKit's own Agent (installed via deploy/install.sh) redeploys itself. The pipeline
+  # (git-pull + rebuild + restart-self) lives in the agent's own deploy-agent.yaml on the host, so
+  # this just triggers it; POST /deploy takes no body and is bearer-gated (DeployHandler, Program.cs).
+  self-deploy:
+    needs: pack
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger SyncKit.Agent self-deploy
+        run: |
+          curl --fail-with-body -sS -X POST "${{ secrets.SYNCKIT_AGENT_URL }}/deploy" \
+            -H "Authorization: Bearer ${{ secrets.DEPLOY_AGENT_SECRET }}"

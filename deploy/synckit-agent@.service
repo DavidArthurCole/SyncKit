@@ -1,0 +1,17 @@
+[Unit]
+Description=SyncKit deploy agent (%i)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=synckit-agent
+Group=synckit-agent
+EnvironmentFile=/etc/synckit/%i.env
+WorkingDirectory=/opt/synckit-agent/publish
+ExecStart=/usr/bin/dotnet /opt/synckit-agent/publish/SyncKit.Agent.dll
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
