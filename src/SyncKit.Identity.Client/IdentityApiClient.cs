@@ -60,5 +60,12 @@ public sealed class IdentityApiClient(HttpClient http)
         resp.EnsureSuccessStatusCode();
     }
 
+    public async Task<RedeemLoginCodeResponse> RedeemAsync(string code, CancellationToken ct)
+    {
+        var resp = await http.PostAsJsonAsync("/identity/redeem", new RedeemLoginCodeRequest { Code = code }, ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<RedeemLoginCodeResponse>(cancellationToken: ct))!;
+    }
+
     private sealed record MergeResult(Guid UserId);
 }

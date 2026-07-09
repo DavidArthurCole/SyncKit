@@ -61,4 +61,18 @@ public class IdentityApiClientTests
         Assert.Equal(keepId, result);
         Assert.Equal("/identity/merge", handler.LastRequest!.RequestUri!.AbsolutePath);
     }
+
+    [Fact]
+    public async Task RedeemAsync_PostsCodeAndReturnsResponse()
+    {
+        var expected = new RedeemLoginCodeResponse { UserId = Guid.NewGuid(), Role = "viewer", Username = "alice", IsNew = false };
+        var (client, handler) = MakeClient(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(expected) });
+
+        var result = await client.RedeemAsync("abc123", CancellationToken.None);
+
+        Assert.Equal(expected.UserId, result.UserId);
+        Assert.Equal("alice", result.Username);
+        Assert.Equal("/identity/redeem", handler.LastRequest!.RequestUri!.AbsolutePath);
+        Assert.Contains("\"code\":\"abc123\"", handler.LastRequestBody);
+    }
 }

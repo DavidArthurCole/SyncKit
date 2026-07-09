@@ -83,3 +83,30 @@ public sealed class SetRoleRequest
     [JsonPropertyName("role")]
     public string Role { get; set; } = "";
 }
+
+public sealed class RedeemLoginCodeRequest
+{
+    [JsonPropertyName("code")]
+    public string Code { get; set; } = "";
+}
+
+public sealed class RedeemLoginCodeResponse
+{
+    [JsonPropertyName("userId")]
+    public Guid UserId { get; set; }
+
+    [JsonPropertyName("discordId")]
+    public string? DiscordId { get; set; }
+
+    [JsonPropertyName("username")]
+    public string Username { get; set; } = "";
+
+    [JsonPropertyName("avatar")]
+    public string? Avatar { get; set; }
+
+    [JsonPropertyName("role")]
+    public string Role { get; set; } = "";
+
+    [JsonPropertyName("isNew")]
+    public bool IsNew { get; set; }
+}

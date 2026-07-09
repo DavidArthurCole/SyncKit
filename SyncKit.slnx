@@ -22,6 +22,7 @@
     <Project Path="tests/SyncKit.Db.Tests/SyncKit.Db.Tests.csproj" />
     <Project Path="tests/SyncKit.Identity.Tests/SyncKit.Identity.Tests.csproj" />
     <Project Path="tests/SyncKit.Identity.Client.Tests/SyncKit.Identity.Client.Tests.csproj" />
+    <Project Path="tests/SyncKit.Identity.Host.Tests/SyncKit.Identity.Host.Tests.csproj" />
     <Project Path="tests/SyncKit.Identity.Tools.Tests/SyncKit.Identity.Tools.Tests.csproj" />
   </Folder>
 </Solution>

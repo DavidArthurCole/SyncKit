@@ -1,8 +1,13 @@
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.IdentityModel.Tokens;
 using Npgsql;
+using SyncKit.Auth;
 using SyncKit.Contract;
 using SyncKit.Db;
 using SyncKit.Identity;
 using SyncKit.Identity.Models;
+using System.IdentityModel.Tokens.Jwt;
 
 var connString = Environment.GetEnvironmentVariable("IDENTITY_DB_CONNECTION")
     ?? throw new InvalidOperationException("IDENTITY_DB_CONNECTION is required");
@@ -10,6 +15,21 @@ var apiSecret = Environment.GetEnvironmentVariable("IDENTITY_API_SECRET")
     ?? throw new InvalidOperationException("IDENTITY_API_SECRET is required");
 var port = Environment.GetEnvironmentVariable("IDENTITY_API_PORT") ?? "8090";
 var adminIds = Environment.GetEnvironmentVariable("IDENTITY_ADMIN_DISCORD_IDS");
+var sweepIntervalMinutes = int.TryParse(Environment.GetEnvironmentVariable("IDENTITY_LOGIN_SWEEP_INTERVAL_MINUTES"), out var m) ? m : 10;
+
+var authentikAuthority = Environment.GetEnvironmentVariable("AUTHENTIK_AUTHORITY");
+var authentikLoginClientId = Environment.GetEnvironmentVariable("AUTHENTIK_LOGIN_CLIENT_ID");
+var authentikLoginClientSecret = Environment.GetEnvironmentVariable("AUTHENTIK_LOGIN_CLIENT_SECRET");
+var loginCallbackUrl = Environment.GetEnvironmentVariable("IDENTITY_LOGIN_CALLBACK_URL");
+var allowedReturnOrigins = (Environment.GetEnvironmentVariable("IDENTITY_LOGIN_ALLOWED_ORIGINS") ?? "")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+var loginWidgetEnabled = !string.IsNullOrEmpty(authentikAuthority)
+    && !string.IsNullOrEmpty(authentikLoginClientId)
+    && !string.IsNullOrEmpty(authentikLoginClientSecret)
+    && !string.IsNullOrEmpty(loginCallbackUrl);
+if (loginWidgetEnabled)
+    AuthentikOAuth.Init(authentikAuthority!, authentikLoginClientId!, authentikLoginClientSecret!, loginCallbackUrl!);
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls($"http://*:{port}");
@@ -20,14 +40,149 @@ builder.Services.AddSingleton(AdminAllowlist.FromConfig(adminIds));
 builder.Services.AddSingleton<IdentityResolver>();
 builder.Services.AddSingleton<RevocationStore>();
 builder.Services.AddSingleton<UserQueries>();
+builder.Services.AddSingleton<LoginCodeStore>();
+builder.Services.AddSingleton<OAuthStateStore>();
+
+// Backs /login/backchannel-logout's logout_token signature check: fetches and caches Authentik's
+// discovery doc/JWKS independently of AuthentikOAuth's own authorization-code exchange.
+if (loginWidgetEnabled)
+    builder.Services.AddSingleton(new ConfigurationManager<OpenIdConnectConfiguration>(
+        $"{authentikAuthority!.TrimEnd('/')}/.well-known/openid-configuration",
+        new OpenIdConnectConfigurationRetriever()));
 
 var app = builder.Build();
+app.UseStaticFiles();
 
 await using (var conn = await dataSource.OpenConnectionAsync())
     await Migrator.MigrateAsync(conn, Path.Combine(AppContext.BaseDirectory, "Migrations"));
 
+var sweeper = new ExpiredRowSweeper(dataSource, TimeSpan.FromMinutes(sweepIntervalMinutes));
+_ = sweeper.RunAsync(app.Lifetime.ApplicationStopping);
+
+// Unauthenticated browser-facing routes MUST be reachable without the bearer secret below,
+// since browsers can't send IDENTITY_API_SECRET.
+var loginRoutes = app.MapGroup("/login");
+
+loginRoutes.MapGet("/start", async (HttpContext ctx, OAuthStateStore states) =>
+{
+    if (!loginWidgetEnabled) return Results.NotFound();
+    var returnOrigin = ctx.Request.Query["returnOrigin"].ToString();
+    if (string.IsNullOrEmpty(returnOrigin) || !allowedReturnOrigins.Contains(returnOrigin))
+        return Results.BadRequest("returnOrigin not allowed");
+
+    var (url, state, verifier) = AuthentikOAuth.AuthUrl();
+    await states.SaveAsync(state, verifier, returnOrigin, ctx.RequestAborted);
+    return Results.Redirect(url);
+});
+
+loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, IdentityResolver resolver, LoginCodeStore codes) =>
+{
+    if (!loginWidgetEnabled) return Results.NotFound();
+    var code = ctx.Request.Query["code"].ToString();
+    var state = ctx.Request.Query["state"].ToString();
+    if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(state))
+        return Results.BadRequest("missing code or state");
+
+    var saved = await states.ConsumeAsync(state, ctx.RequestAborted);
+    if (saved is null)
+        return Results.BadRequest("unknown or expired state");
+
+    string loginCode;
+    try
+    {
+        var token = await AuthentikOAuth.HandleCallbackAsync(code, saved.CodeVerifier, ctx.RequestAborted);
+        var resolved = await resolver.ResolveAsync("authentik", token.Sub, token.DiscordId, token.Username, token.Avatar, ctx.RequestAborted);
+        loginCode = await codes.IssueAsync(resolved.UserId, resolved.IsNew, ctx.RequestAborted);
+    }
+    catch (Exception)
+    {
+        var errorPayloadJson = System.Text.Json.JsonSerializer.Serialize(new { source = "synckit-auth", error = "login_failed" });
+        var errorOriginJson = System.Text.Json.JsonSerializer.Serialize(saved.ReturnOrigin);
+        var errorHtml = $"""
+            <!DOCTYPE html><html><body><script>
+            window.opener && window.opener.postMessage({errorPayloadJson}, {errorOriginJson});
+            window.close();
+            </script></body></html>
+            """;
+        return Results.Content(errorHtml, "text/html");
+    }
+
+    var payloadJson = System.Text.Json.JsonSerializer.Serialize(new { source = "synckit-auth", code = loginCode });
+    var originJson = System.Text.Json.JsonSerializer.Serialize(saved.ReturnOrigin);
+    var html = $"""
+        <!DOCTYPE html><html><body><script>
+        window.opener && window.opener.postMessage({payloadJson}, {originJson});
+        window.close();
+        </script></body></html>
+        """;
+    return Results.Content(html, "text/html");
+});
+
+// Authentik back-channel logout notification for the synckit-login Application: server-to-server
+// POST with a signed logout_token, no cookies/session context. Per OIDC Back-Channel Logout 1.0
+// sec 2.6: verify signature + iss/aud, require an "events" claim carrying backchannel-logout,
+// forbid a "nonce" claim, then revoke the sid. Same verification EggIncognito/EggLedger's own
+// AuthController.BackchannelLogout already does against their own Applications; this one covers
+// the synckit-login Application used by the embedded widget's own OIDC exchange.
+loginRoutes.MapPost("/backchannel-logout", async (HttpContext ctx, RevocationStore revocations) =>
+{
+    if (!loginWidgetEnabled) return Results.NotFound();
+    var form = await ctx.Request.ReadFormAsync(ctx.RequestAborted);
+    var logoutToken = form["logout_token"].ToString();
+    if (string.IsNullOrWhiteSpace(logoutToken))
+        return Results.BadRequest();
+
+    var configManager = ctx.RequestServices.GetRequiredService<ConfigurationManager<OpenIdConnectConfiguration>>();
+    OpenIdConnectConfiguration discovery;
+    try
+    {
+        discovery = await configManager.GetConfigurationAsync(ctx.RequestAborted);
+    }
+    catch (Exception)
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+
+    var validationParams = new TokenValidationParameters
+    {
+        ValidIssuer = discovery.Issuer,
+        IssuerSigningKeys = discovery.SigningKeys,
+        ValidAudience = authentikLoginClientId,
+        ValidateLifetime = true,
+    };
+
+    System.Security.Claims.ClaimsPrincipal principal;
+    try
+    {
+        principal = new JwtSecurityTokenHandler().ValidateToken(logoutToken, validationParams, out _);
+    }
+    catch (Exception)
+    {
+        return Results.BadRequest();
+    }
+
+    if (principal.FindFirst("nonce") is not null)
+        return Results.BadRequest();
+
+    var events = principal.FindFirst("events")?.Value;
+    if (string.IsNullOrEmpty(events) || !events.Contains("backchannel-logout"))
+        return Results.BadRequest();
+
+    var sid = principal.FindFirst("sid")?.Value;
+    if (string.IsNullOrEmpty(sid))
+        return Results.BadRequest();
+
+    await revocations.RevokeAsync(sid, ctx.RequestAborted);
+    return Results.Ok();
+});
+
 app.Use(async (ctx, next) =>
 {
+    if (ctx.Request.Path.StartsWithSegments("/login") || ctx.Request.Path.StartsWithSegments("/synckit-login.js"))
+    {
+        await next();
+        return;
+    }
     var auth = ctx.Request.Headers.Authorization.ToString();
     if (auth != $"Bearer {apiSecret}")
     {
@@ -82,6 +237,23 @@ app.MapPost("/identity/{userId:guid}/role", async (Guid userId, SetRoleRequest r
 {
     var ok = await users.SetRoleAsync(userId, UserRoles.Parse(req.Role), ct);
     return ok ? Results.NoContent() : Results.NotFound();
+});
+
+app.MapPost("/identity/redeem", async (RedeemLoginCodeRequest req, LoginCodeStore codes, UserQueries users, CancellationToken ct) =>
+{
+    var redeemed = await codes.RedeemAsync(req.Code, ct);
+    if (redeemed is null) return Results.NotFound();
+    var user = await users.GetAsync(redeemed.UserId, ct);
+    if (user is null) return Results.NotFound();
+    return Results.Ok(new RedeemLoginCodeResponse
+    {
+        UserId = user.UserId,
+        DiscordId = user.DiscordId,
+        Username = user.Username,
+        Avatar = user.Avatar,
+        Role = user.Role,
+        IsNew = redeemed.IsNew,
+    });
 });
 
 app.Run();
