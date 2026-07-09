@@ -38,6 +38,8 @@ EOF
   echo "install.sh: wrote $ENV_FILE with a placeholder secret and default port 7777, edit before starting (pick a free port if other instances are already running)"
 fi
 
+git config --global --add safe.directory "$INSTALL_DIR"
+
 if [ -d "$INSTALL_DIR/.git" ]; then
   git -C "$INSTALL_DIR" pull
 else
