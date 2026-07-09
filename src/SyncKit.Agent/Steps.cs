@@ -53,6 +53,11 @@ public sealed class DockerPull : IStep
     public string Ref { get; set; } = "";
     public string Container { get; set; } = "";
 
+    // Must run even after an earlier git-pull short-circuit: the image tag can advance (new CI push)
+    // on an unchanged commit, or lag behind a commit already pulled on a prior tick. Self-gates via its
+    // own "Image is up to date" + container-match check, so this never causes redundant work.
+    public bool RunOnShortCircuit => true;
+
     public string? Exec(RunContext c)
     {
         // From = what the CONTAINER is running now (the version being replaced), so the embed shows a
