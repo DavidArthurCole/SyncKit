@@ -64,3 +64,27 @@ jobs:
           tags: |
             ghcr.io/davidarthurcole/synckit-identity:${{ github.ref_name }}
             ghcr.io/davidarthurcole/synckit-identity:latest
+
+  # Build+push the deploy-agent image. Same shape as docker-identity-host — context is repo root
+  # since the Dockerfile needs the whole solution for its ProjectReferences.
+  docker-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/SyncKit.Agent/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/davidarthurcole/synckit-agent:${{ github.ref_name }}
+            ghcr.io/davidarthurcole/synckit-agent:latest
