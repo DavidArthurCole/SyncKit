@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using System.Text.Json;
 
 namespace SyncKit.Agent;
@@ -189,6 +190,35 @@ public sealed class Shell : IStep
         var (output, ok) = c.Run("sh", ["-c", $"cd {dir} && {Run}"]);
         c.Out.Append(output);
         return ok ? null : (output.Trim().Length > 0 ? output.Trim() : "shell command failed");
+    }
+}
+
+// AppCallback POSTs to an app-owned endpoint and lets the app run its own deploy logic (e.g.
+// device-specific publish/restart) that SyncKit has no business knowing about. Bearer-gated with
+// the same shape as DEPLOY_AGENT_SECRET/POST /deploy, just inverted: SyncKit calls the app instead
+// of the app calling SyncKit. The response body is folded into the pipeline's output tail so a
+// failure's reason shows up in the Discord failure embed like any other step's output does.
+public sealed class AppCallback : IStep
+{
+    public string UrlEnv { get; set; } = "";
+    public string SecretEnv { get; set; } = "";
+
+    public string? Exec(RunContext c)
+    {
+        var url = Environment.GetEnvironmentVariable(UrlEnv) ?? "";
+        if (url == "") return $"app-callback: {UrlEnv} unset";
+        var secret = SecretEnv != "" ? Environment.GetEnvironmentVariable(SecretEnv) ?? "" : "";
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
+            if (secret != "")
+                http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", secret);
+            var resp = http.PostAsync(url, null).GetAwaiter().GetResult();
+            var body = resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            c.Out.Append(body).Append('\n');
+            return resp.IsSuccessStatusCode ? null : $"app-callback {url} -> {(int)resp.StatusCode}";
+        }
+        catch (Exception e) { return $"app-callback: {e.Message}"; }
     }
 }
 

@@ -69,6 +69,15 @@ public class AgentConfigTests
     }
 
     [Fact]
+    public void Parse_AppCallbackStep_DecodesUrlAndSecretEnv()
+    {
+        var cfg = AgentConfig.Parse("name: t\nsteps:\n  - app-callback: { url_env: EGI_RUNNER_DEPLOY_URL, secret_env: EGI_RUNNER_DEPLOY_SECRET }\n");
+        var step = Assert.IsType<AppCallback>(cfg.Steps[0]);
+        Assert.Equal("EGI_RUNNER_DEPLOY_URL", step.UrlEnv);
+        Assert.Equal("EGI_RUNNER_DEPLOY_SECRET", step.SecretEnv);
+    }
+
+    [Fact]
     public void Parse_UnknownStep_Throws() =>
         Assert.Throws<FormatException>(() => AgentConfig.Parse("name: t\nsteps:\n  - bogus-step\n"));
 

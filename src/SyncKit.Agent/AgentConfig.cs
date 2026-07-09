@@ -74,6 +74,7 @@ public sealed class AgentConfig
                 "docker-build" => new DockerBuild { Tag = Field(p, "tag") },
                 "container-recreate" => new ContainerRecreate { Name = Field(p, "name") },
                 "webhook" => new Webhook { Url = Field(p, "url"), UrlEnv = Field(p, "url_env") },
+                "app-callback" => new AppCallback { UrlEnv = Field(p, "url_env"), SecretEnv = Field(p, "secret_env") },
                 "shell" => new Shell { Run = Field(p, "run"), Dir = Field(p, "dir"), Always = Field(p, "always") == "true" },
                 "portainer-update-stack" => new PortainerUpdateStack
                 {
