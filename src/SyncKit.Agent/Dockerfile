@@ -10,7 +10,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
 # Executor.cs shells out to `git` (git-pull step) and `docker` (docker-pull/docker-build/docker-pull
-# steps) via Process.Start — both must be on PATH inside the container. docker.io ships a client that
+# steps) via Process.Start, both must be on PATH inside the container. docker.io ships a client that
 # talks to a mounted /var/run/docker.sock; no daemon runs in this container.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git docker.io ca-certificates \

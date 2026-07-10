@@ -118,12 +118,8 @@ loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, 
     return Results.Content(html, "text/html");
 });
 
-// Authentik back-channel logout notification for the synckit-login Application: server-to-server
-// POST with a signed logout_token, no cookies/session context. Per OIDC Back-Channel Logout 1.0
-// sec 2.6: verify signature + iss/aud, require an "events" claim carrying backchannel-logout,
-// forbid a "nonce" claim, then revoke the sid. Same verification EggIncognito/EggLedger's own
-// AuthController.BackchannelLogout already does against their own Applications; this one covers
-// the synckit-login Application used by the embedded widget's own OIDC exchange.
+// Authentik back-channel logout: server-to-server POST with a signed logout_token, no cookies/session context.
+// Per OIDC Back-Channel Logout 1.0 sec 2.6: verify signature + iss/aud, require an "events" claim carrying backchannel-logout, forbid "nonce", then revoke the sid.
 loginRoutes.MapPost("/backchannel-logout", async (HttpContext ctx, RevocationStore revocations) =>
 {
     if (!loginWidgetEnabled) return Results.NotFound();

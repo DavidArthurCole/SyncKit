@@ -15,6 +15,11 @@
   <ItemGroup>
     <ProjectReference Include="..\SyncKit.Contract\SyncKit.Contract.csproj" />
     <ProjectReference Include="..\SyncKit.Db\SyncKit.Db.csproj" />
+    <ProjectReference Include="..\SyncKit.Config\SyncKit.Config.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,10 +1,10 @@
 using System.Text;
 using Microsoft.AspNetCore.Http;
+using SyncKit.Bot;
 using SyncKit.Contract;
-using SyncKit.Core;
 using Xunit;
 
-namespace SyncKit.Core.Tests;
+namespace SyncKit.Bot.Tests;
 
 public class NewVersionHandlerTests
 {

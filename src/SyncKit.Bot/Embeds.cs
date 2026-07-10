@@ -4,7 +4,9 @@ using SyncKit.Contract;
 namespace SyncKit.Bot;
 
 // Ports Go bot/embeds.go + VerifyResponse embed. Colors and titles frozen for visual parity.
-public static class Embeds
+// Renamed from Embeds so app code can call SyncKitBot.DefaultEmbeds.X inside a full-delegate
+// override and layer changes on top instead of reimplementing from scratch.
+public static class DefaultEmbeds
 {
     public static Embed AlreadyUpToDate(BotConfig cfg, string hash) =>
         new EmbedBuilder()
@@ -34,7 +36,7 @@ public static class Embeds
             .WithColor(new Color(0x5865F2))
             .AddField("SHA256", $"[{cfg.Build.Sha256}]({cfg.CommitUrl(cfg.Build.Version)})")
             .AddField("Version", $"[{cfg.Build.Version}]({cfg.CommitUrl(cfg.Build.Version)})", inline: true)
-            .AddField("Built", cfg.Build.Date, inline: true)
+            .AddField("Built", string.IsNullOrEmpty(cfg.Build.Date) ? "unknown" : cfg.Build.Date, inline: true)
             .Build();
 
     public static Embed Dashboard(DashboardSnapshot snapshot)
@@ -54,5 +56,24 @@ public static class Embeds
             builder.AddField(key, value, inline: true);
 
         return builder.WithFooter("Updated").WithCurrentTimestamp().Build();
+    }
+}
+
+// Tier-2 re-skin: overrides Color/Title on a SyncKit default embed and appends ExtraFields
+// after the builtin ones. A full delegate (tier 3) always wins over this when both are set.
+public sealed record EmbedOptions
+{
+    public uint? Color { get; init; }
+    public string? Title { get; init; }
+    public IReadOnlyList<(string Name, string Value, bool Inline)> ExtraFields { get; init; } = Array.Empty<(string, string, bool)>();
+
+    public Embed Apply(Embed defaultEmbed)
+    {
+        var builder = defaultEmbed.ToEmbedBuilder();
+        if (Title is not null) builder.WithTitle(Title);
+        if (Color is not null) builder.WithColor(new Discord.Color(Color.Value));
+        foreach (var (name, value, inline) in ExtraFields)
+            builder.AddField(name, value, inline);
+        return builder.Build();
     }
 }

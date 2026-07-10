@@ -2,9 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace SyncKit.Contract;
 
-// Mirrors the device-farm wire shape. The Go contract.NewVersionEvent has only the
-// first five fields; EggIncognito's farm emits a SUPERSET. This C# port carries the
-// full superset so EggLedger ignores extras and EggIncognito keeps receiving them.
+// Carries EggIncognito's full device-farm superset (Go's contract.NewVersionEvent has only the first five fields) so EggLedger ignores extras and EggIncognito keeps receiving them.
 // Extra fields are nullable / WhenWritingDefault so they vanish from output when unset.
 public sealed class NewVersionEvent
 {

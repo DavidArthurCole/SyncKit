@@ -12,10 +12,8 @@ public sealed record MergeResult(
     IReadOnlyList<RemapEntry> Remaps,
     IReadOnlyList<OrphanIdentity> Orphans);
 
-// Pure merge decision, no I/O: EggIncognito's users win discord_id collisions (richer
-// role/session wiring already lives against its user_id in most places today), EggLedger's
-// identities for that discord_id get remapped onto the surviving user_id. Non-colliding users
-// from both sides pass through untouched with their existing user_id.
+// Pure merge decision, no I/O: EggIncognito's users win discord_id collisions.
+// EggLedger's identities for that discord_id get remapped onto the surviving user_id; non-colliding users pass through untouched.
 public static class CutoverMerger
 {
     public static MergeResult Merge(SourceSnapshot egi, SourceSnapshot ledger)

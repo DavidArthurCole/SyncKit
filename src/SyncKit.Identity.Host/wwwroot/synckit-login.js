@@ -28,7 +28,7 @@
       function onMessage(event) {
         if (event.source !== popup) return;
         if (event.origin !== new URL(identityHostUrl).origin) return;
-        if (!event.data || event.data.source !== "synckit-auth") return;
+        if (event.data?.source !== "synckit-auth") return;
         settled = true;
         cleanup();
         if (event.data.error) {

@@ -2,9 +2,7 @@ using YamlDotNet.RepresentationModel;
 
 namespace SyncKit.Agent;
 
-// A parsed deploy-agent.yaml: pipeline plus optional watch block. RepoUrl enables commit links on
-// docker-pull hashes. Mirrors the Go Config + ParseConfig (config.go). Each step entry is either a bare
-// scalar ("git-pull") or a single-key map ("docker-pull: { ref: ... }").
+// A parsed deploy-agent.yaml. Each step entry is either a bare scalar ("git-pull") or a single-key map ("docker-pull: { ref: ... }").
 public sealed class AgentConfig
 {
     public string Name { get; init; } = "";

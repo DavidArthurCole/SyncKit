@@ -16,13 +16,19 @@ public sealed class SyncKitBot : IAsyncDisposable
     private readonly BotConfig _cfg;
     private readonly DiscordSocketClient _client;
     private readonly Dictionary<string, Func<SocketSlashCommandContext, Task>> _extra;
+    private readonly Dictionary<string, Func<SocketAutocompleteContext, Task>> _autocomplete;
+    private readonly SyncKitBotBuilder? _builder;
     private ChannelHub? _channelHub;
 
-    private SyncKitBot(BotConfig cfg, DiscordSocketClient client)
+    private SyncKitBot(BotConfig cfg, DiscordSocketClient client, SyncKitBotBuilder? builder)
     {
         _cfg = cfg;
         _client = client;
+        _builder = builder;
         _extra = FilterExtras(cfg.Extra).ToDictionary(c => c.Name, c => c.Handler);
+        _autocomplete = FilterExtras(cfg.Extra)
+            .Where(c => c.AutocompleteHandler is not null)
+            .ToDictionary(c => c.Name, c => c.AutocompleteHandler!);
     }
 
     // Null until ChannelHub is enabled (DashboardChannelId set) and the guild is ready.
@@ -35,7 +41,7 @@ public sealed class SyncKitBot : IAsyncDisposable
         _channelHub is null ? null : await _channelHub.GetOrCreateWebhookUrlAsync(kind, ct);
 
     // Returns null (a no-op bot) when Token is empty, mirroring Go's (noop, nil).
-    public static async Task<SyncKitBot?> StartAsync(BotConfig cfg)
+    public static async Task<SyncKitBot?> StartAsync(BotConfig cfg, SyncKitBotBuilder? builder = null)
     {
         if (string.IsNullOrEmpty(cfg.Token))
             return null;
@@ -44,9 +50,10 @@ public sealed class SyncKitBot : IAsyncDisposable
         {
             GatewayIntents = GatewayIntents.Guilds,
         });
-        var bot = new SyncKitBot(cfg, client);
+        var bot = new SyncKitBot(cfg, client, builder);
 
         client.SlashCommandExecuted += bot.OnSlashCommandAsync;
+        client.AutocompleteExecuted += bot.OnAutocompleteAsync;
         client.Ready += bot.OnReadyAsync;
 
         await client.LoginAsync(TokenType.Bot, cfg.Token);
@@ -107,22 +114,94 @@ public sealed class SyncKitBot : IAsyncDisposable
 
     private async Task RegisterCommandsAsync()
     {
-        if (string.IsNullOrEmpty(_cfg.AppId) || string.IsNullOrEmpty(_cfg.GuildId))
+        if (string.IsNullOrEmpty(_cfg.AppId)) return;
+
+        var builtins = BuildBuiltinCommands();
+        var extras = FilterExtras(_cfg.Extra).Select(c => c.Definition).ToList();
+        var desired = builtins.Concat(extras).ToList();
+
+        if (_cfg.GlobalCommands)
+        {
+            await RegisterGlobalAsync(desired);
+            if (_cfg.GuildCommandMirror && !string.IsNullOrEmpty(_cfg.GuildId))
+                await RegisterGuildAsync(desired);
             return;
+        }
+
+        if (string.IsNullOrEmpty(_cfg.GuildId)) return;
+        await RegisterGuildAsync(desired);
+    }
+
+    private List<ApplicationCommandProperties> BuildBuiltinCommands()
+    {
+        var verifyBuilder = new SlashCommandBuilder()
+            .WithName("verify").WithDescription("Show the running server's build identity.");
+        var updateBuilder = new SlashCommandBuilder()
+            .WithName("updateserver").WithDescription("Pull latest and redeploy (admin only).")
+            .WithDefaultMemberPermissions(GuildPermission.Administrator)
+            .WithIntegrationTypes(ApplicationIntegrationType.GuildInstall)
+            .WithContextTypes(InteractionContextType.Guild);
+
+        if (_cfg.GlobalCommands)
+            verifyBuilder
+                .WithIntegrationTypes(ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall)
+                .WithContextTypes(InteractionContextType.Guild, InteractionContextType.BotDm, InteractionContextType.PrivateChannel);
+
+        return new List<ApplicationCommandProperties> { verifyBuilder.Build(), updateBuilder.Build() };
+    }
+
+    private async Task RegisterGlobalAsync(List<ApplicationCommandProperties> desired)
+    {
+        var desiredSig = CommandSignature.Compute(desired.Select(CommandSignature.FromProperties));
+        string? currentSig = null;
+        try
+        {
+            var current = await _client.GetGlobalApplicationCommandsAsync();
+            currentSig = CommandSignature.Compute(current.Select(CommandSignature.FromCommand));
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"bot: fetch global commands for diff: {ex.Message}");
+        }
+
+        if (currentSig == desiredSig)
+        {
+            Console.WriteLine("bot: global commands unchanged, skipping overwrite");
+            return;
+        }
+        await _client.BulkOverwriteGlobalApplicationCommandsAsync(desired.ToArray());
+    }
+
+    private async Task RegisterGuildAsync(List<ApplicationCommandProperties> desired)
+    {
         if (!TryParseSnowflake(_cfg.GuildId, "guild id", out var guildId)) return;
         var guild = _client.GetGuild(guildId);
         if (guild is null) return;
 
-        var verify = new SlashCommandBuilder()
-            .WithName("verify").WithDescription("Show the running server's build identity.").Build();
-        var update = new SlashCommandBuilder()
-            .WithName("updateserver").WithDescription("Pull latest and redeploy (admin only).")
-            .WithDefaultMemberPermissions(GuildPermission.Administrator).Build();
+        var desiredSig = CommandSignature.Compute(desired.Select(CommandSignature.FromProperties));
+        IReadOnlyCollection<IApplicationCommand>? current = null;
+        try
+        {
+            current = await guild.GetApplicationCommandsAsync();
+            var currentSig = CommandSignature.Compute(current.Select(CommandSignature.FromCommand));
+            if (currentSig == desiredSig)
+            {
+                Console.WriteLine("bot: guild commands unchanged, skipping overwrite");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"bot: fetch guild commands for diff: {ex.Message}");
+        }
 
-        await guild.CreateApplicationCommandAsync(verify);
-        await guild.CreateApplicationCommandAsync(update);
-        foreach (var e in FilterExtras(_cfg.Extra))
-            await guild.CreateApplicationCommandAsync(e.Definition);
+        var desiredNames = desired.Select(d => d.Name.IsSpecified ? d.Name.Value : "").ToHashSet();
+        if (current is not null)
+            foreach (var existing in current.Where(c => !desiredNames.Contains(c.Name)))
+                await existing.DeleteAsync();
+
+        foreach (var d in desired)
+            await guild.CreateApplicationCommandAsync(d);
     }
 
     private async Task EnsureSharedRoleAsync()
@@ -145,7 +224,7 @@ public sealed class SyncKitBot : IAsyncDisposable
         switch (cmd.Data.Name)
         {
             case "verify":
-                await cmd.RespondAsync(embed: Embeds.Verify(_cfg), ephemeral: true);
+                await cmd.RespondAsync(embed: _builder?.ResolveVerifyEmbed(_cfg) ?? DefaultEmbeds.Verify(_cfg), ephemeral: true);
                 break;
             case "updateserver":
                 await HandleUpdateServerAsync(cmd);
@@ -154,6 +233,23 @@ public sealed class SyncKitBot : IAsyncDisposable
                 if (_extra.TryGetValue(cmd.Data.Name, out var h))
                     await h(new SocketSlashCommandContext(_client, cmd));
                 break;
+        }
+    }
+
+    private async Task OnAutocompleteAsync(SocketAutocompleteInteraction ac)
+    {
+        if (_autocomplete.TryGetValue(ac.Data.CommandName, out var h))
+        {
+            try { await h(new SocketAutocompleteContext(_client, ac)); }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"bot: autocomplete /{ac.Data.CommandName} failed: {ex.Message}");
+                try { await ac.RespondAsync(Array.Empty<AutocompleteResult>()); } catch { /* interaction already acked/expired */ }
+            }
+        }
+        else
+        {
+            try { await ac.RespondAsync(Array.Empty<AutocompleteResult>()); } catch { /* interaction already acked/expired */ }
         }
     }
 
@@ -174,15 +270,17 @@ public sealed class SyncKitBot : IAsyncDisposable
         await cmd.DeferAsync();
         var res = await DeployAgentClient.CallAsync(_cfg.DeployAgentUrl, _cfg.DeployAgentSecret);
         Embed? embed = res.AlreadyUpToDate
-            ? Embeds.AlreadyUpToDate(_cfg, res.FromHash ?? "")
-            : res.Ok ? Embeds.Success(_cfg, res.FromHash ?? "", res.ToHash ?? "") : null;
+            ? _builder?.ResolveAlreadyUpToDateEmbed(_cfg, res.FromHash ?? "") ?? DefaultEmbeds.AlreadyUpToDate(_cfg, res.FromHash ?? "")
+            : res.Ok
+                ? _builder?.ResolveSuccessEmbed(_cfg, res.FromHash ?? "", res.ToHash ?? "") ?? DefaultEmbeds.Success(_cfg, res.FromHash ?? "", res.ToHash ?? "")
+                : null;
         if (embed is not null)
         {
             await cmd.ModifyOriginalResponseAsync(m => m.Embed = embed);
             return;
         }
         await cmd.DeleteOriginalResponseAsync();
-        await cmd.FollowupAsync(embed: Embeds.Failure(res.Tail ?? ""), ephemeral: true);
+        await cmd.FollowupAsync(embed: _builder?.ResolveFailureEmbed(_cfg, res.Tail ?? "") ?? DefaultEmbeds.Failure(res.Tail ?? ""), ephemeral: true);
     }
 
     public async ValueTask DisposeAsync()

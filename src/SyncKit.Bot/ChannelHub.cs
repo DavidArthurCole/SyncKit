@@ -15,7 +15,7 @@ public sealed class ChannelHub(SocketGuild guild, ulong dashboardChannelId, stri
     public async Task UpdateDashboardAsync(DashboardSnapshot snapshot, CancellationToken ct)
     {
         if (guild.GetChannel(dashboardChannelId) is not ITextChannel channel) return;
-        var embed = Embeds.Dashboard(snapshot);
+        var embed = DefaultEmbeds.Dashboard(snapshot);
 
         var existing = await store.GetAsync(guild.Id.ToString(), appName, DashboardKind, ct);
         if (existing is not null && ulong.TryParse(existing.DiscordId, out var messageId))

@@ -5,11 +5,8 @@ namespace SyncKit.Identity;
 
 public sealed record ResolveResult(Guid UserId, string Role, string? DiscordId, bool IsNew);
 
-// Resolves a user_id for any provider login: exact-match an existing (provider, subject)
-// identity, else auto-link via a matching discord identity (when discordId is supplied and the
-// provider itself isn't "discord"), else create a brand-new account. One DB transaction; the
-// identities insert is `ON CONFLICT DO NOTHING` + re-select-on-conflict so two concurrent first
-// logins for the same (provider, subject) always agree on one winning user_id.
+// Resolves a user_id for any provider login: exact-match, else auto-link via discord identity, else create.
+// The identities insert is `ON CONFLICT DO NOTHING` + re-select-on-conflict so two concurrent first logins for the same (provider, subject) agree on one winning user_id.
 public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist allowlist)
 {
     public async Task<ResolveResult> ResolveAsync(

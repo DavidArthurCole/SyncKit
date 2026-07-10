@@ -26,9 +26,6 @@ public interface IStep
 {
     string? Exec(RunContext c);
 
-    // True to run this step even after an earlier pull step set RunContext.ShortCircuit (e.g. a
-    // shell step that redeploys something unrelated to the pulled artifact, so "the image was
-    // already up to date" must not skip it). Defaults false: unrelated steps keep today's
-    // short-circuit-stops-the-pipeline behavior.
+    // True to run this step even after an earlier pull step set RunContext.ShortCircuit.
     bool RunOnShortCircuit => false;
 }

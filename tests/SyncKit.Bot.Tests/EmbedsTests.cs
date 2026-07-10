@@ -1,3 +1,4 @@
+using Discord;
 using SyncKit.Bot;
 using SyncKit.Contract;
 using Xunit;
@@ -16,7 +17,7 @@ public class EmbedsTests
     [Fact]
     public void AlreadyUpToDate_BlurpleTitleAndColor()
     {
-        var e = Embeds.AlreadyUpToDate(Cfg(), "abc1234");
+        var e = DefaultEmbeds.AlreadyUpToDate(Cfg(), "abc1234");
         Assert.Equal("Already up to date.", e.Title);
         Assert.Equal(0x5865F2u, e.Color!.Value.RawValue);
         Assert.Contains(e.Fields, f => f.Name == "Current" && f.Value.ToString()!.Contains("abc1234"));
@@ -25,7 +26,7 @@ public class EmbedsTests
     [Fact]
     public void Success_GreenFromTo()
     {
-        var e = Embeds.Success(Cfg(), "aaa1111", "bbb2222");
+        var e = DefaultEmbeds.Success(Cfg(), "aaa1111", "bbb2222");
         Assert.Equal("Updated", e.Title);
         Assert.Equal(0x57F287u, e.Color!.Value.RawValue);
         Assert.Contains(e.Fields, f => f.Name == "From" && f.Value.ToString()!.Contains("aaa1111"));
@@ -35,7 +36,7 @@ public class EmbedsTests
     [Fact]
     public void Failure_RedWithTail()
     {
-        var e = Embeds.Failure("boom log");
+        var e = DefaultEmbeds.Failure("boom log");
         Assert.Equal("Update failed.", e.Title);
         Assert.Equal(0xED4245u, e.Color!.Value.RawValue);
         Assert.Contains("boom log", e.Description);
@@ -44,7 +45,7 @@ public class EmbedsTests
     [Fact]
     public void Verify_BlurpleWithBuildFields()
     {
-        var e = Embeds.Verify(Cfg());
+        var e = DefaultEmbeds.Verify(Cfg());
         Assert.Equal("EggLedger Sync Server", e.Title);
         Assert.Equal(0x5865F2u, e.Color!.Value.RawValue);
         Assert.Contains(e.Fields, f => f.Name == "SHA256" && f.Value.ToString()!.Contains("deadbeef"));
@@ -66,7 +67,7 @@ public class EmbedsTests
             ExtraFields = new Dictionary<string, string> { ["Region"] = "us-east" },
         };
 
-        var e = Embeds.Dashboard(snapshot);
+        var e = DefaultEmbeds.Dashboard(snapshot);
 
         Assert.Equal("EggLedger", e.Title);
         Assert.Contains(e.Fields, f => f.Name == "Version" && f.Value.ToString() == "v1.2.3");
@@ -80,10 +81,47 @@ public class EmbedsTests
     {
         var snapshot = new DashboardSnapshot { AppName = "EggLedger", UptimeSince = DateTimeOffset.UtcNow };
 
-        var e = Embeds.Dashboard(snapshot);
+        var e = DefaultEmbeds.Dashboard(snapshot);
 
         Assert.DoesNotContain(e.Fields, f => f.Name == "Build");
         Assert.DoesNotContain(e.Fields, f => f.Name == "Repo");
         Assert.Contains(e.Fields, f => f.Name == "Version" && f.Value.ToString() == "unknown");
+    }
+
+    [Fact]
+    public void EmbedOptions_Apply_NoOverrides_ReturnsEquivalentEmbed()
+    {
+        var original = DefaultEmbeds.Verify(Cfg());
+        var applied = new EmbedOptions().Apply(original);
+
+        Assert.Equal(original.Title, applied.Title);
+        Assert.Equal(original.Color, applied.Color);
+        Assert.Equal(original.Fields.Length, applied.Fields.Length);
+    }
+
+    [Fact]
+    public void EmbedOptions_Apply_OverridesColorAndTitle()
+    {
+        var original = DefaultEmbeds.Verify(Cfg());
+        var applied = new EmbedOptions { Color = 0x00FF00, Title = "Custom Title" }.Apply(original);
+
+        Assert.Equal("Custom Title", applied.Title);
+        Assert.Equal(0x00FF00u, applied.Color!.Value.RawValue);
+    }
+
+    [Fact]
+    public void EmbedOptions_Apply_AppendsExtraFieldsAfterDefaults_InOrder()
+    {
+        var original = DefaultEmbeds.Verify(Cfg());
+        var options = new EmbedOptions
+        {
+            ExtraFields = new[] { ("Region", "us-east", true), ("Tier", "pro", true) },
+        };
+        var applied = options.Apply(original);
+
+        var names = applied.Fields.Select(f => f.Name).ToArray();
+        Assert.Equal(original.Fields.Length + 2, applied.Fields.Length);
+        Assert.Equal("Region", names[^2]);
+        Assert.Equal("Tier", names[^1]);
     }
 }

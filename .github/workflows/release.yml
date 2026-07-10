@@ -65,7 +65,7 @@ jobs:
             ghcr.io/davidarthurcole/synckit-identity:${{ github.ref_name }}
             ghcr.io/davidarthurcole/synckit-identity:latest
 
-  # Build+push the deploy-agent image. Same shape as docker-identity-host — context is repo root
+  # Build+push the deploy-agent image. Same shape as docker-identity-host, context is repo root
   # since the Dockerfile needs the whole solution for its ProjectReferences.
   docker-agent:
     runs-on: ubuntu-latest

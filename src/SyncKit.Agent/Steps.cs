@@ -45,18 +45,14 @@ public sealed class DockerBuild : IStep
     }
 }
 
-// DockerPull pulls an image ref, records from/to identities, and flags a no-op pull. When the image
-// carries an org.opencontainers.image.revision label, the hash is that commit's short sha + a commit URL
-// (needs RepoUrl); else the short image ID. Container (optional): a no-op pull only short-circuits when
-// that container ALSO already runs the pulled image, so a lagging container is still reconciled.
+// DockerPull pulls an image ref and records from/to identities.
+// With Container set, a no-op pull only short-circuits when that container also already runs the pulled image, so a lagging container still gets reconciled.
 public sealed class DockerPull : IStep
 {
     public string Ref { get; set; } = "";
     public string Container { get; set; } = "";
 
-    // Must run even after an earlier git-pull short-circuit: the image tag can advance (new CI push)
-    // on an unchanged commit, or lag behind a commit already pulled on a prior tick. Self-gates via its
-    // own "Image is up to date" + container-match check, so this never causes redundant work.
+    // Must run even after a git-pull short-circuit: the image tag can advance on an unchanged commit.
     public bool RunOnShortCircuit => true;
 
     public string? Exec(RunContext c)
@@ -193,11 +189,8 @@ public sealed class Shell : IStep
     }
 }
 
-// AppCallback POSTs to an app-owned endpoint and lets the app run its own deploy logic (e.g.
-// device-specific publish/restart) that SyncKit has no business knowing about. Bearer-gated with
-// the same shape as DEPLOY_AGENT_SECRET/POST /deploy, just inverted: SyncKit calls the app instead
-// of the app calling SyncKit. The response body is folded into the pipeline's output tail so a
-// failure's reason shows up in the Discord failure embed like any other step's output does.
+// AppCallback POSTs to an app-owned endpoint for deploy logic SyncKit has no business knowing about.
+// Bearer-gated, same shape as DEPLOY_AGENT_SECRET/POST /deploy but inverted.
 public sealed class AppCallback : IStep
 {
     public string UrlEnv { get; set; } = "";
@@ -222,23 +215,14 @@ public sealed class AppCallback : IStep
     }
 }
 
-// PortainerUpdateStack forces a real re-pull + recreate of a Portainer stack via the Portainer API.
-// The stack webhook does NOT re-pull an unchanged :latest tag (Portainer no-ops when the tag string is
-// identical), which silently strands a stale container. This step GETs the stack (to echo its current
-// compose + env back, which the PUT requires) then PUTs with pullImage=true, which actually pulls the
-// new image and recreates the containers in place. All inputs come from env vars so secrets stay out of
-// the yaml. Records the stack's resolved image digest as from/to identity when available.
+// The stack webhook alone no-ops on an unchanged :latest tag, so this PUTs the stack directly to force a real re-pull + recreate.
 public sealed class PortainerUpdateStack : IStep
 {
     public string UrlEnv { get; set; } = "PORTAINER_API_URL";
     public string KeyEnv { get; set; } = "PORTAINER_API_KEY";
     public string StackIdEnv { get; set; } = "PORTAINER_STACK_ID";
     public string EndpointIdEnv { get; set; } = "PORTAINER_ENDPOINT_ID";
-    // pullImage=false by default: a stack with mixed registry + locally-built images (e.g. ledgersync,
-    // portfolio built on the host, never pushed) would 500 on pullImage=true because Portainer tries to
-    // `docker pull` the local-only ones. The agent's own docker-pull step already pulled the target
-    // image to the host, so a pull-less redeploy recreates the container against that fresh host image
-    // while leaving the local images untouched. Set true only on all-registry stacks.
+    // false avoids a 500 on stacks mixing registry + locally-built images, since Portainer tries to pull the local-only ones too.
     public bool PullImage { get; set; }
 
     public string? Exec(RunContext c)

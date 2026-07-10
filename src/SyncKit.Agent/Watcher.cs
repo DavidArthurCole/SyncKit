@@ -4,13 +4,9 @@ using SyncKit.Contract;
 
 namespace SyncKit.Agent;
 
-// Polls the deploy pipeline on an interval and posts Discord webhook embeds on change. Up-to-date is
-// silent; a deploy posts green; a failure posts red once per distinct tail (reset on any non-failure)
-// so a broken pipeline does not spam every tick. Mirrors the Go Watcher.
-//
-// resolveWebhookUrl is called fresh on every tick that needs to notify (not cached at construction)
-// so it can back onto ChannelHub's DB-stored per-thread webhook, which can be created/rotated/torn
-// down at runtime without restarting the agent. Return "" to notify nowhere this tick.
+// Polls the deploy pipeline on an interval and posts Discord webhook embeds on change.
+// A failure posts red once per distinct tail, reset on any non-failure, so a broken pipeline doesn't spam every tick.
+// resolveWebhookUrl is called fresh each notifying tick (not cached) so it can pick up a rotated ChannelHub webhook without restarting the agent.
 public sealed class Watcher(string name, TimeSpan interval, Func<string> resolveWebhookUrl, Func<(DeployResponse, bool)> tryRun)
 {
     private string _lastFail = "";
