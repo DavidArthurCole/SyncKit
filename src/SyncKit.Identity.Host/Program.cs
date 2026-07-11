@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
@@ -7,7 +8,6 @@ using SyncKit.Contract;
 using SyncKit.Db;
 using SyncKit.Identity;
 using SyncKit.Identity.Models;
-using System.IdentityModel.Tokens.Jwt;
 
 var connString = Environment.GetEnvironmentVariable("IDENTITY_DB_CONNECTION")
     ?? throw new InvalidOperationException("IDENTITY_DB_CONNECTION is required");
@@ -45,10 +45,11 @@ builder.Services.AddSingleton<OAuthStateStore>();
 
 // Backs /login/backchannel-logout's logout_token signature check: fetches and caches Authentik's
 // discovery doc/JWKS independently of AuthentikOAuth's own authorization-code exchange.
-if (loginWidgetEnabled)
+if (loginWidgetEnabled) {
     builder.Services.AddSingleton(new ConfigurationManager<OpenIdConnectConfiguration>(
         $"{authentikAuthority!.TrimEnd('/')}/.well-known/openid-configuration",
         new OpenIdConnectConfigurationRetriever()));
+}
 
 var app = builder.Build();
 app.UseStaticFiles();
@@ -63,8 +64,7 @@ _ = sweeper.RunAsync(app.Lifetime.ApplicationStopping);
 // since browsers can't send IDENTITY_API_SECRET.
 var loginRoutes = app.MapGroup("/login");
 
-loginRoutes.MapGet("/start", async (HttpContext ctx, OAuthStateStore states) =>
-{
+loginRoutes.MapGet("/start", async (HttpContext ctx, OAuthStateStore states) => {
     if (!loginWidgetEnabled) return Results.NotFound();
     var returnOrigin = ctx.Request.Query["returnOrigin"].ToString();
     if (string.IsNullOrEmpty(returnOrigin) || !allowedReturnOrigins.Contains(returnOrigin))
@@ -75,8 +75,7 @@ loginRoutes.MapGet("/start", async (HttpContext ctx, OAuthStateStore states) =>
     return Results.Redirect(url);
 });
 
-loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, IdentityResolver resolver, LoginCodeStore codes) =>
-{
+loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, IdentityResolver resolver, LoginCodeStore codes) => {
     if (!loginWidgetEnabled) return Results.NotFound();
     var code = ctx.Request.Query["code"].ToString();
     var state = ctx.Request.Query["state"].ToString();
@@ -88,14 +87,11 @@ loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, 
         return Results.BadRequest("unknown or expired state");
 
     string loginCode;
-    try
-    {
+    try {
         var token = await AuthentikOAuth.HandleCallbackAsync(code, saved.CodeVerifier, ctx.RequestAborted);
         var resolved = await resolver.ResolveAsync("authentik", token.Sub, token.DiscordId, token.Username, token.Avatar, ctx.RequestAborted);
         loginCode = await codes.IssueAsync(resolved.UserId, resolved.IsNew, ctx.RequestAborted);
-    }
-    catch (Exception)
-    {
+    } catch (Exception) {
         var errorPayloadJson = System.Text.Json.JsonSerializer.Serialize(new { source = "synckit-auth", error = "login_failed" });
         var errorOriginJson = System.Text.Json.JsonSerializer.Serialize(saved.ReturnOrigin);
         var errorHtml = $"""
@@ -120,8 +116,7 @@ loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, 
 
 // Authentik back-channel logout: server-to-server POST with a signed logout_token, no cookies/session context.
 // Per OIDC Back-Channel Logout 1.0 sec 2.6: verify signature + iss/aud, require an "events" claim carrying backchannel-logout, forbid "nonce", then revoke the sid.
-loginRoutes.MapPost("/backchannel-logout", async (HttpContext ctx, RevocationStore revocations) =>
-{
+loginRoutes.MapPost("/backchannel-logout", async (HttpContext ctx, RevocationStore revocations) => {
     if (!loginWidgetEnabled) return Results.NotFound();
     var form = await ctx.Request.ReadFormAsync(ctx.RequestAborted);
     var logoutToken = form["logout_token"].ToString();
@@ -130,17 +125,13 @@ loginRoutes.MapPost("/backchannel-logout", async (HttpContext ctx, RevocationSto
 
     var configManager = ctx.RequestServices.GetRequiredService<ConfigurationManager<OpenIdConnectConfiguration>>();
     OpenIdConnectConfiguration discovery;
-    try
-    {
+    try {
         discovery = await configManager.GetConfigurationAsync(ctx.RequestAborted);
-    }
-    catch (Exception)
-    {
+    } catch (Exception) {
         return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
     }
 
-    var validationParams = new TokenValidationParameters
-    {
+    var validationParams = new TokenValidationParameters {
         ValidIssuer = discovery.Issuer,
         IssuerSigningKeys = discovery.SigningKeys,
         ValidAudience = authentikLoginClientId,
@@ -148,12 +139,9 @@ loginRoutes.MapPost("/backchannel-logout", async (HttpContext ctx, RevocationSto
     };
 
     System.Security.Claims.ClaimsPrincipal principal;
-    try
-    {
+    try {
         principal = new JwtSecurityTokenHandler().ValidateToken(logoutToken, validationParams, out _);
-    }
-    catch (Exception)
-    {
+    } catch (Exception) {
         return Results.BadRequest();
     }
 
@@ -172,16 +160,13 @@ loginRoutes.MapPost("/backchannel-logout", async (HttpContext ctx, RevocationSto
     return Results.Ok();
 });
 
-app.Use(async (ctx, next) =>
-{
-    if (ctx.Request.Path.StartsWithSegments("/login") || ctx.Request.Path.StartsWithSegments("/synckit-login.js"))
-    {
+app.Use(async (ctx, next) => {
+    if (ctx.Request.Path.StartsWithSegments("/login") || ctx.Request.Path.StartsWithSegments("/synckit-login.js")) {
         await next();
         return;
     }
     var auth = ctx.Request.Headers.Authorization.ToString();
-    if (auth != $"Bearer {apiSecret}")
-    {
+    if (auth != $"Bearer {apiSecret}") {
         ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
         await ctx.Response.WriteAsync("unauthorized");
         return;
@@ -189,11 +174,9 @@ app.Use(async (ctx, next) =>
     await next();
 });
 
-app.MapPost("/identity/resolve", async (IdentityResolveRequest req, IdentityResolver resolver, CancellationToken ct) =>
-{
+app.MapPost("/identity/resolve", async (IdentityResolveRequest req, IdentityResolver resolver, CancellationToken ct) => {
     var result = await resolver.ResolveAsync(req.Provider, req.Subject, req.DiscordId, req.Username, req.Avatar, ct);
-    return Results.Ok(new IdentityResolveResponse
-    {
+    return Results.Ok(new IdentityResolveResponse {
         UserId = result.UserId,
         Role = result.Role,
         DiscordId = result.DiscordId,
@@ -201,8 +184,7 @@ app.MapPost("/identity/resolve", async (IdentityResolveRequest req, IdentityReso
     });
 });
 
-app.MapGet("/identity/{userId:guid}", async (Guid userId, UserQueries users, CancellationToken ct) =>
-{
+app.MapGet("/identity/{userId:guid}", async (Guid userId, UserQueries users, CancellationToken ct) => {
     var user = await users.GetAsync(userId, ct);
     if (user is null) return Results.NotFound();
     return Results.Ok(ToResponse(user));
@@ -211,8 +193,7 @@ app.MapGet("/identity/{userId:guid}", async (Guid userId, UserQueries users, Can
 // Session revocation is sid-keyed only (revoked_sessions has no user_id column) - no userId in
 // these routes; back-channel logout tokens only ever carry a sid, never a user_id, so requiring
 // one here would force every caller into an unnecessary extra lookup.
-app.MapPost("/identity/revoke-session", async (RevokeSessionRequest req, RevocationStore store, CancellationToken ct) =>
-{
+app.MapPost("/identity/revoke-session", async (RevokeSessionRequest req, RevocationStore store, CancellationToken ct) => {
     await store.RevokeAsync(req.Sid, ct);
     return Results.NoContent();
 });
@@ -220,8 +201,7 @@ app.MapPost("/identity/revoke-session", async (RevokeSessionRequest req, Revocat
 app.MapGet("/identity/sessions/{sid}/revoked", async (string sid, RevocationStore store, CancellationToken ct) =>
     Results.Ok(await store.IsRevokedAsync(sid, ct)));
 
-app.MapPost("/identity/merge", async (MergeUsersRequest req, IdentityResolver resolver, CancellationToken ct) =>
-{
+app.MapPost("/identity/merge", async (MergeUsersRequest req, IdentityResolver resolver, CancellationToken ct) => {
     var winner = await resolver.MergeAsync(req.KeepUserId, req.MergeUserId, ct);
     return Results.Ok(new { userId = winner });
 });
@@ -229,20 +209,17 @@ app.MapPost("/identity/merge", async (MergeUsersRequest req, IdentityResolver re
 app.MapGet("/identity/admin/users", async (UserQueries users, CancellationToken ct) =>
     Results.Ok((await users.ListAsync(ct)).Select(ToResponse)));
 
-app.MapPost("/identity/{userId:guid}/role", async (Guid userId, SetRoleRequest req, UserQueries users, CancellationToken ct) =>
-{
+app.MapPost("/identity/{userId:guid}/role", async (Guid userId, SetRoleRequest req, UserQueries users, CancellationToken ct) => {
     var ok = await users.SetRoleAsync(userId, UserRoles.Parse(req.Role), ct);
     return ok ? Results.NoContent() : Results.NotFound();
 });
 
-app.MapPost("/identity/redeem", async (RedeemLoginCodeRequest req, LoginCodeStore codes, UserQueries users, CancellationToken ct) =>
-{
+app.MapPost("/identity/redeem", async (RedeemLoginCodeRequest req, LoginCodeStore codes, UserQueries users, CancellationToken ct) => {
     var redeemed = await codes.RedeemAsync(req.Code, ct);
     if (redeemed is null) return Results.NotFound();
     var user = await users.GetAsync(redeemed.UserId, ct);
     if (user is null) return Results.NotFound();
-    return Results.Ok(new RedeemLoginCodeResponse
-    {
+    return Results.Ok(new RedeemLoginCodeResponse {
         UserId = user.UserId,
         DiscordId = user.DiscordId,
         Username = user.Username,
@@ -254,8 +231,7 @@ app.MapPost("/identity/redeem", async (RedeemLoginCodeRequest req, LoginCodeStor
 
 app.Run();
 
-static IdentityUserResponse ToResponse(User u) => new()
-{
+static IdentityUserResponse ToResponse(User u) => new() {
     UserId = u.UserId,
     DiscordId = u.DiscordId,
     Username = u.Username,

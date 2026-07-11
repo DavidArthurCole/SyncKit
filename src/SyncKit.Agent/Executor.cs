@@ -6,50 +6,48 @@ namespace SyncKit.Agent;
 
 // Runs an ordered list of steps and produces a DeployResponse. Mirrors the Go Executor: stop at the
 // first failure, accumulate output, track from/to identities, return a 20-line tail on failure.
-public sealed class Executor
-{
+public sealed class Executor {
     public string Repo { get; init; } = "";
     public string RepoUrl { get; init; } = "";
     public required IReadOnlyList<IStep> Steps { get; init; }
     public Func<string, string[], (string Output, bool Ok)> Runner { get; init; } = RealRunner;
 
-    public DeployResponse Run()
-    {
+    public DeployResponse Run() {
         var c = new RunContext { Repo = Repo, RepoUrl = RepoUrl, Run = Runner };
-        foreach (var step in Steps)
-        {
+        foreach (var step in Steps) {
             // Once a pull step finds nothing new, skip the rest of the pipeline except steps that
             // opted into running anyway (e.g. a shell step redeploying something the pull doesn't
             // gate, like a sibling binary built from the same repo).
             if (c.ShortCircuit && !step.RunOnShortCircuit) continue;
 
             var err = step.Exec(c);
-            if (err is not null)
-            {
+            if (err is not null) {
                 // The error message is often the only signal, so it must survive the tail cut.
                 c.Out.Append('\n').Append(err).Append('\n');
-                return new DeployResponse
-                {
-                    FromHash = c.FromHash, ToHash = c.ToHash, FromUrl = c.FromUrl, ToUrl = c.ToUrl,
+                return new DeployResponse {
+                    FromHash = c.FromHash,
+                    ToHash = c.ToHash,
+                    FromUrl = c.FromUrl,
+                    ToUrl = c.ToUrl,
                     Tail = TailLines(c.Out.ToString(), 20),
                 };
             }
         }
-        return new DeployResponse
-        {
-            Ok = true, AlreadyUpToDate = c.ShortCircuit,
-            FromHash = c.FromHash, ToHash = c.ToHash, FromUrl = c.FromUrl, ToUrl = c.ToUrl,
+        return new DeployResponse {
+            Ok = true,
+            AlreadyUpToDate = c.ShortCircuit,
+            FromHash = c.FromHash,
+            ToHash = c.ToHash,
+            FromUrl = c.FromUrl,
+            ToUrl = c.ToUrl,
         };
     }
 
     // Runs a command, returns (combined stdout+stderr, exitCode==0). Never throws: a spawn failure
     // returns ok=false with the exception text, so a step decides how to report it.
-    public static (string Output, bool Ok) RealRunner(string name, string[] args)
-    {
-        try
-        {
-            var psi = new ProcessStartInfo(name)
-            {
+    public static (string Output, bool Ok) RealRunner(string name, string[] args) {
+        try {
+            var psi = new ProcessStartInfo(name) {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -61,12 +59,10 @@ public sealed class Executor
             var stderr = p.StandardError.ReadToEnd();
             p.WaitForExit();
             return (stdout + stderr, p.ExitCode == 0);
-        }
-        catch (Exception e) { return ($"{name}: {e.Message}", false); }
+        } catch (Exception e) { return ($"{name}: {e.Message}", false); }
     }
 
-    internal static string TailLines(string s, int n)
-    {
+    internal static string TailLines(string s, int n) {
         if (s == "" || n <= 0) return "";
         var lines = s.TrimEnd('\r', '\n').Split('\n');
         if (lines.Length <= n) return string.Join("\n", lines);

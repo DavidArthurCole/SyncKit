@@ -8,12 +8,10 @@ namespace SyncKit.Identity.Tests;
 // DB-gated: needs a real Postgres connection to exercise transactional insert/conflict behavior
 // in-process, matching the established pattern in EggIncognito/EggLedger's own identity tests
 // (plain Fact + early return when the env var is unset, no live Postgres in CI).
-public class IdentityResolverTests
-{
+public class IdentityResolverTests {
     private static string? ConnString => Environment.GetEnvironmentVariable("SYNCKIT_TEST_PG_CONN");
 
-    private static async Task<NpgsqlDataSource> MakeDbAsync()
-    {
+    private static async Task<NpgsqlDataSource> MakeDbAsync() {
         var dataSource = NpgsqlDataSource.Create(ConnString!);
         await using var conn = await dataSource.OpenConnectionAsync();
         await Migrator.MigrateAsync(conn, Path.Combine(AppContext.BaseDirectory, "Migrations"));
@@ -24,8 +22,7 @@ public class IdentityResolverTests
         new(db, AdminAllowlist.FromConfig(adminCsv));
 
     [Fact]
-    public async Task ResolveAsync_NewSub_NoDiscordId_CreatesNewUser()
-    {
+    public async Task ResolveAsync_NewSub_NoDiscordId_CreatesNewUser() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var resolver = MakeResolver(db);
@@ -37,8 +34,7 @@ public class IdentityResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsync_ExistingSub_ReturnsSameUserId()
-    {
+    public async Task ResolveAsync_ExistingSub_ReturnsSameUserId() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var resolver = MakeResolver(db);
@@ -51,8 +47,7 @@ public class IdentityResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsync_MatchingDiscordId_AutoLinksExistingUser()
-    {
+    public async Task ResolveAsync_MatchingDiscordId_AutoLinksExistingUser() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var resolver = MakeResolver(db);
@@ -64,8 +59,7 @@ public class IdentityResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsync_AdminAllowlist_PromotesOnLogin()
-    {
+    public async Task ResolveAsync_AdminAllowlist_PromotesOnLogin() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var resolver = MakeResolver(db, "999-admin");
@@ -76,8 +70,7 @@ public class IdentityResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsync_DiscordPath_IsTransactional_ConcurrentFirstLoginsAgree()
-    {
+    public async Task ResolveAsync_DiscordPath_IsTransactional_ConcurrentFirstLoginsAgree() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var resolver = MakeResolver(db);
@@ -90,8 +83,7 @@ public class IdentityResolverTests
     }
 
     [Fact]
-    public async Task MergeAsync_ReassignsIdentitiesAndDeletesLoser()
-    {
+    public async Task MergeAsync_ReassignsIdentitiesAndDeletesLoser() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var resolver = MakeResolver(db);

@@ -4,8 +4,7 @@ namespace SyncKit.Agent;
 
 // Threads accumulated output and repo path through a pipeline run. Mirrors the Go runCtx. A step reads
 // Repo/RepoUrl, appends to Out, runs commands via Run, and records From/To identities for the response.
-public sealed class RunContext
-{
+public sealed class RunContext {
     public required string Repo { get; init; }
     public required string RepoUrl { get; init; }
     public StringBuilder Out { get; } = new();
@@ -22,8 +21,7 @@ public sealed class RunContext
 
 // One unit of a deploy pipeline. Returns null on success, or an error message on failure (the message
 // is surfaced in the response tail). Mirrors the Go Step interface (Exec returning error).
-public interface IStep
-{
+public interface IStep {
     string? Exec(RunContext c);
 
     // True to run this step even after an earlier pull step set RunContext.ShortCircuit.

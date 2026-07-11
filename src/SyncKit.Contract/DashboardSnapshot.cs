@@ -4,8 +4,7 @@ namespace SyncKit.Contract;
 
 // Host app builds one of these whenever its status changes (boot, post-deploy, timer) and
 // hands it to SyncKitBot.UpdateDashboardAsync. Pure data; SyncKit.Bot owns rendering it.
-public sealed class DashboardSnapshot
-{
+public sealed class DashboardSnapshot {
     [JsonPropertyName("appName")]
     public string AppName { get; set; } = "";
 

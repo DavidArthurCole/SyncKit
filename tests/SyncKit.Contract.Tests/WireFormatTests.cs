@@ -4,12 +4,10 @@ using Xunit;
 
 namespace SyncKit.Contract.Tests;
 
-public class WireFormatTests
-{
+public class WireFormatTests {
     // Golden string copied verbatim from Go contract_test.go TestDeployResponseRoundTrip.
     [Fact]
-    public void DeployResponse_MatchesGoWire()
-    {
+    public void DeployResponse_MatchesGoWire() {
         var dr = new DeployResponse { Ok = true, AlreadyUpToDate = true, FromHash = "abc1234", ToHash = "abc1234" };
         var json = JsonSerializer.Serialize(dr);
         Assert.Equal(
@@ -19,8 +17,7 @@ public class WireFormatTests
 
     // Bare OK=false must emit only {"ok":false} (everything else omitempty).
     [Fact]
-    public void DeployResponse_Empty_EmitsOnlyOk()
-    {
+    public void DeployResponse_Empty_EmitsOnlyOk() {
         var json = JsonSerializer.Serialize(new DeployResponse { Ok = false });
         Assert.Equal("{\"ok\":false}", json);
     }
@@ -28,10 +25,8 @@ public class WireFormatTests
     // Golden string copied verbatim from Go contract_test.go TestNewVersionEventTags.
     // Note: only the five Go fields set, so the superset extras must NOT appear.
     [Fact]
-    public void NewVersionEvent_MatchesGoWire()
-    {
-        var e = new NewVersionEvent
-        {
+    public void NewVersionEvent_MatchesGoWire() {
+        var e = new NewVersionEvent {
             Package = "com.auxbrain.egginc",
             Version = "1.34",
             ApkRef = "/x/base.apk",
@@ -45,8 +40,7 @@ public class WireFormatTests
     }
 
     [Fact]
-    public void VerifyInfo_AllFieldsAlwaysPresent()
-    {
+    public void VerifyInfo_AllFieldsAlwaysPresent() {
         var json = JsonSerializer.Serialize(new VerifyInfo { Name = "EggLedger", Sha256 = "ab", Version = "v1", Date = "d" });
         Assert.Equal("{\"name\":\"EggLedger\",\"sha256\":\"ab\",\"version\":\"v1\",\"date\":\"d\"}", json);
     }

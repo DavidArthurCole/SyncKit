@@ -5,10 +5,8 @@ namespace SyncKit.Bot;
 public sealed record ChannelState(string GuildId, string AppName, string Kind, string DiscordId, string? WebhookToken);
 
 // Raw Npgsql over bot_channel_state, matching SyncKit.Identity's UserQueries convention.
-public sealed class ChannelStateStore(NpgsqlDataSource dataSource)
-{
-    public async Task<ChannelState?> GetAsync(string guildId, string appName, string kind, CancellationToken ct)
-    {
+public sealed class ChannelStateStore(NpgsqlDataSource dataSource) {
+    public async Task<ChannelState?> GetAsync(string guildId, string appName, string kind, CancellationToken ct) {
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand(
             "SELECT guild_id, app_name, kind, discord_id, webhook_token FROM bot_channel_state WHERE guild_id = $1 AND app_name = $2 AND kind = $3",
@@ -21,8 +19,7 @@ public sealed class ChannelStateStore(NpgsqlDataSource dataSource)
         return Read(reader);
     }
 
-    public async Task<IReadOnlyList<ChannelState>> ListAsync(string guildId, string appName, CancellationToken ct)
-    {
+    public async Task<IReadOnlyList<ChannelState>> ListAsync(string guildId, string appName, CancellationToken ct) {
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand(
             "SELECT guild_id, app_name, kind, discord_id, webhook_token FROM bot_channel_state WHERE guild_id = $1 AND app_name = $2",
@@ -35,8 +32,7 @@ public sealed class ChannelStateStore(NpgsqlDataSource dataSource)
         return results;
     }
 
-    public async Task UpsertAsync(string guildId, string appName, string kind, string discordId, string? webhookToken, CancellationToken ct)
-    {
+    public async Task UpsertAsync(string guildId, string appName, string kind, string discordId, string? webhookToken, CancellationToken ct) {
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand(
             """
@@ -54,8 +50,7 @@ public sealed class ChannelStateStore(NpgsqlDataSource dataSource)
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public async Task DeleteAsync(string guildId, string appName, string kind, CancellationToken ct)
-    {
+    public async Task DeleteAsync(string guildId, string appName, string kind, CancellationToken ct) {
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand(
             "DELETE FROM bot_channel_state WHERE guild_id = $1 AND app_name = $2 AND kind = $3", conn);

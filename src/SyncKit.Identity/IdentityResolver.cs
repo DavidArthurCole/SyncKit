@@ -7,17 +7,14 @@ public sealed record ResolveResult(Guid UserId, string Role, string? DiscordId, 
 
 // Resolves a user_id for any provider login: exact-match, else auto-link via discord identity, else create.
 // The identities insert is `ON CONFLICT DO NOTHING` + re-select-on-conflict so two concurrent first logins for the same (provider, subject) agree on one winning user_id.
-public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist allowlist)
-{
+public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist allowlist) {
     public async Task<ResolveResult> ResolveAsync(
-        string provider, string subject, string? discordId, string? username, string? avatar, CancellationToken ct)
-    {
+        string provider, string subject, string? discordId, string? username, string? avatar, CancellationToken ct) {
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
 
         var existing = await LookupAsync(conn, provider, subject, ct);
-        if (existing is { } foundUserId)
-        {
+        if (existing is { } foundUserId) {
             var existingRole = await TouchAndPromoteAsync(conn, foundUserId, discordId, username, avatar, ct);
             await tx.CommitAsync(ct);
             return new ResolveResult(foundUserId, existingRole, discordId, IsNew: false);
@@ -26,21 +23,16 @@ public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist
         Guid userId;
         bool isNew;
         if (provider != "discord" && !string.IsNullOrEmpty(discordId) &&
-            await LookupAsync(conn, "discord", discordId, ct) is { } linkedUserId)
-        {
+            await LookupAsync(conn, "discord", discordId, ct) is { } linkedUserId) {
             userId = linkedUserId;
             isNew = false;
-        }
-        else if (provider == "discord" &&
-            await LookupByDiscordIdAsync(conn, subject, ct) is { } discordUserId)
-        {
+        } else if (provider == "discord" &&
+              await LookupByDiscordIdAsync(conn, subject, ct) is { } discordUserId) {
             // Discord-as-primary-provider re-login: the users row already exists keyed by
             // discord_id (upserted below), the identities row may just be missing.
             userId = discordUserId;
             isNew = false;
-        }
-        else
-        {
+        } else {
             userId = Guid.NewGuid();
             isNew = true;
         }
@@ -53,21 +45,18 @@ public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist
         return new ResolveResult(winnerId, role, effectiveDiscordId, isNew && winnerId == userId);
     }
 
-    public async Task<Guid> MergeAsync(Guid keepUserId, Guid mergeUserId, CancellationToken ct)
-    {
+    public async Task<Guid> MergeAsync(Guid keepUserId, Guid mergeUserId, CancellationToken ct) {
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
 
         await using (var cmd = new NpgsqlCommand(
-            "UPDATE identities SET user_id = $1 WHERE user_id = $2", conn))
-        {
+            "UPDATE identities SET user_id = $1 WHERE user_id = $2", conn)) {
             cmd.Parameters.AddWithValue(keepUserId);
             cmd.Parameters.AddWithValue(mergeUserId);
             await cmd.ExecuteNonQueryAsync(ct);
         }
 
-        await using (var cmd = new NpgsqlCommand("DELETE FROM users WHERE user_id = $1", conn))
-        {
+        await using (var cmd = new NpgsqlCommand("DELETE FROM users WHERE user_id = $1", conn)) {
             cmd.Parameters.AddWithValue(mergeUserId);
             await cmd.ExecuteNonQueryAsync(ct);
         }
@@ -76,8 +65,7 @@ public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist
         return keepUserId;
     }
 
-    private static async Task<Guid?> LookupAsync(NpgsqlConnection conn, string provider, string subject, CancellationToken ct)
-    {
+    private static async Task<Guid?> LookupAsync(NpgsqlConnection conn, string provider, string subject, CancellationToken ct) {
         await using var cmd = new NpgsqlCommand(
             "SELECT user_id FROM identities WHERE provider = $1 AND subject = $2", conn);
         cmd.Parameters.AddWithValue(provider);
@@ -86,8 +74,7 @@ public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist
         return result is Guid g ? g : null;
     }
 
-    private static async Task<Guid?> LookupByDiscordIdAsync(NpgsqlConnection conn, string discordId, CancellationToken ct)
-    {
+    private static async Task<Guid?> LookupByDiscordIdAsync(NpgsqlConnection conn, string discordId, CancellationToken ct) {
         await using var cmd = new NpgsqlCommand("SELECT user_id FROM users WHERE discord_id = $1", conn);
         cmd.Parameters.AddWithValue(discordId);
         var result = await cmd.ExecuteScalarAsync(ct);
@@ -95,8 +82,7 @@ public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist
     }
 
     private async Task<string> UpsertUserAsync(
-        NpgsqlConnection conn, Guid userId, string? discordId, string? username, string? avatar, bool isNew, CancellationToken ct)
-    {
+        NpgsqlConnection conn, Guid userId, string? discordId, string? username, string? avatar, bool isNew, CancellationToken ct) {
         var role = isNew
             ? ResolveNewUserRole(discordId, allowlist)
             : await ExistingRoleOrDefaultAsync(conn, userId, discordId, allowlist, ct);
@@ -121,8 +107,7 @@ public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist
     }
 
     private async Task<string> TouchAndPromoteAsync(
-        NpgsqlConnection conn, Guid userId, string? discordId, string? username, string? avatar, CancellationToken ct)
-    {
+        NpgsqlConnection conn, Guid userId, string? discordId, string? username, string? avatar, CancellationToken ct) {
         var role = await ExistingRoleOrDefaultAsync(conn, userId, discordId, allowlist, ct);
         await using var cmd = new NpgsqlCommand(
             """
@@ -142,8 +127,7 @@ public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist
     }
 
     private static async Task<string> ExistingRoleOrDefaultAsync(
-        NpgsqlConnection conn, Guid userId, string? discordId, AdminAllowlist allowlist, CancellationToken ct)
-    {
+        NpgsqlConnection conn, Guid userId, string? discordId, AdminAllowlist allowlist, CancellationToken ct) {
         if (!string.IsNullOrEmpty(discordId) && allowlist.Ids.Contains(discordId))
             return UserRoles.ToName(UserRole.Admin);
 
@@ -162,8 +146,7 @@ public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist
     // ON CONFLICT DO NOTHING makes this a no-op; re-select and return the winner's user_id
     // rather than the caller's freshly-built one.
     private static async Task<Guid> InsertIdentityAsync(
-        NpgsqlConnection conn, Guid userId, string provider, string subject, CancellationToken ct)
-    {
+        NpgsqlConnection conn, Guid userId, string provider, string subject, CancellationToken ct) {
         await using var cmd = new NpgsqlCommand(
             "INSERT INTO identities (user_id, provider, subject) VALUES ($1, $2, $3) ON CONFLICT (provider, subject) DO NOTHING",
             conn);

@@ -5,12 +5,10 @@ using Xunit;
 
 namespace SyncKit.Identity.Tests;
 
-public class ExpiredRowSweeperTests
-{
+public class ExpiredRowSweeperTests {
     private static string? ConnString => Environment.GetEnvironmentVariable("SYNCKIT_TEST_PG_CONN");
 
-    private static async Task<NpgsqlDataSource> MakeDbAsync()
-    {
+    private static async Task<NpgsqlDataSource> MakeDbAsync() {
         var dataSource = NpgsqlDataSource.Create(ConnString!);
         await using var conn = await dataSource.OpenConnectionAsync();
         await Migrator.MigrateAsync(conn, Path.Combine(AppContext.BaseDirectory, "Migrations"));
@@ -18,8 +16,7 @@ public class ExpiredRowSweeperTests
     }
 
     [Fact]
-    public async Task SweepAsync_DeletesExpiredOAuthStates_KeepsLive()
-    {
+    public async Task SweepAsync_DeletesExpiredOAuthStates_KeepsLive() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var states = new OAuthStateStore(db, ttl: TimeSpan.FromMilliseconds(1));
@@ -37,8 +34,7 @@ public class ExpiredRowSweeperTests
     }
 
     [Fact]
-    public async Task SweepAsync_DeletesExpiredLoginCodes_KeepsLive()
-    {
+    public async Task SweepAsync_DeletesExpiredLoginCodes_KeepsLive() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var resolver = new IdentityResolver(db, AdminAllowlist.FromConfig(""));

@@ -4,8 +4,7 @@ using SyncKit.Contract;
 namespace SyncKit.Bot;
 
 // Ports Go bot.Config. DeployAgentUrl/Secret enable /updateserver.
-public sealed class BotConfig
-{
+public sealed class BotConfig {
     public string Name { get; init; } = "";
     public string Token { get; init; } = "";
     public string AppId { get; init; } = "";
@@ -28,9 +27,9 @@ public sealed class BotConfig
     public Func<string, Embed>? FailureEmbedBuilder { get; init; }
 
     // false = today's per-command guild-scoped CreateApplicationCommandAsync behavior, unchanged.
-    public bool GlobalCommands { get; init; } = false;
+    public bool GlobalCommands { get; init; }
     // Dev flag: also register guild-scoped copies alongside global commands (faster local iteration).
-    public bool GuildCommandMirror { get; init; } = false;
+    public bool GuildCommandMirror { get; init; }
 
     // ChannelHub is enabled only when DashboardChannelId is set. EnabledThreads is a CSV of
     // ThreadKind names; unset/empty = all threads off (see ThreadKinds.ParseCsv).

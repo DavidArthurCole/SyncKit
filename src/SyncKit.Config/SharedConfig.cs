@@ -12,10 +12,8 @@ public sealed record SharedConfig(
     string? DeployAgentSecret,
     string? PostgresHost,
     string? PostgresPort,
-    string? AuthentikAuthority)
-{
-    private sealed class Raw
-    {
+    string? AuthentikAuthority) {
+    private sealed class Raw {
         public string? SharedRoleId { get; set; }
         public string? DeployAgentUrl { get; set; }
         public string? DeployAgentSecret { get; set; }
@@ -27,11 +25,9 @@ public sealed record SharedConfig(
     // Any field not present in the file (or the file itself missing) falls back to the
     // equivalent env var via envFallback. Purely additive: no caller breaks if the file
     // doesn't exist yet.
-    public static SharedConfig Load(string path, Func<string, string?> envFallback)
-    {
+    public static SharedConfig Load(string path, Func<string, string?> envFallback) {
         Raw raw = new();
-        if (File.Exists(path))
-        {
+        if (File.Exists(path)) {
             var yaml = File.ReadAllText(path);
             var deserializer = new DeserializerBuilder()
                 .WithNamingConvention(CamelCaseNamingConvention.Instance)

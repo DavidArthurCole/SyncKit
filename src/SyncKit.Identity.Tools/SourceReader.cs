@@ -4,20 +4,16 @@ namespace SyncKit.Identity.Tools;
 
 // Reads each app's own users/identities as-is. No writes, ever - this side of the tool is
 // read-only against production by design.
-public static class SourceReader
-{
-    public static async Task<SourceSnapshot> ReadEggIncognitoAsync(string connString, CancellationToken ct)
-    {
+public static class SourceReader {
+    public static async Task<SourceSnapshot> ReadEggIncognitoAsync(string connString, CancellationToken ct) {
         await using var db = NpgsqlDataSource.Create(connString);
         await using var conn = await db.OpenConnectionAsync(ct);
 
         var users = new List<SourceUser>();
         await using (var cmd = new NpgsqlCommand(
             "SELECT user_id, discord_id, username, avatar, role, created_at, last_login_at FROM users", conn))
-        await using (var reader = await cmd.ExecuteReaderAsync(ct))
-        {
-            while (await reader.ReadAsync(ct))
-            {
+        await using (var reader = await cmd.ExecuteReaderAsync(ct)) {
+            while (await reader.ReadAsync(ct)) {
                 users.Add(new SourceUser(
                     reader.GetGuid(0),
                     reader.IsDBNull(1) ? null : reader.GetString(1),
@@ -36,18 +32,15 @@ public static class SourceReader
     // EggLedger quirks normalized here: avatar_url -> Avatar, created_at BIGINT unix-seconds ->
     // DateTimeOffset, no role column (null - resolved to viewer/admin-allowlist downstream same
     // as any brand-new user would be).
-    public static async Task<SourceSnapshot> ReadEggLedgerAsync(string connString, CancellationToken ct)
-    {
+    public static async Task<SourceSnapshot> ReadEggLedgerAsync(string connString, CancellationToken ct) {
         await using var db = NpgsqlDataSource.Create(connString);
         await using var conn = await db.OpenConnectionAsync(ct);
 
         var users = new List<SourceUser>();
         await using (var cmd = new NpgsqlCommand(
             "SELECT user_id, discord_id, username, avatar_url, created_at FROM users", conn))
-        await using (var reader = await cmd.ExecuteReaderAsync(ct))
-        {
-            while (await reader.ReadAsync(ct))
-            {
+        await using (var reader = await cmd.ExecuteReaderAsync(ct)) {
+            while (await reader.ReadAsync(ct)) {
                 var avatarUrl = reader.IsDBNull(3) ? "" : reader.GetString(3);
                 users.Add(new SourceUser(
                     reader.GetGuid(0),
@@ -64,13 +57,11 @@ public static class SourceReader
         return new SourceSnapshot(users, identities);
     }
 
-    private static async Task<List<SourceIdentity>> ReadIdentitiesAsync(NpgsqlConnection conn, CancellationToken ct)
-    {
+    private static async Task<List<SourceIdentity>> ReadIdentitiesAsync(NpgsqlConnection conn, CancellationToken ct) {
         var identities = new List<SourceIdentity>();
         await using var cmd = new NpgsqlCommand("SELECT user_id, provider, subject, linked_at FROM identities", conn);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
+        while (await reader.ReadAsync(ct)) {
             identities.Add(new SourceIdentity(
                 reader.GetGuid(0), reader.GetString(1), reader.GetString(2),
                 reader.GetFieldValue<DateTimeOffset>(3)));

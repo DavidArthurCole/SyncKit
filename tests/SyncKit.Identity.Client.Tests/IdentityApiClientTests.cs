@@ -4,10 +4,8 @@ using SyncKit.Contract;
 
 namespace SyncKit.Identity.Client.Tests;
 
-public class IdentityApiClientTests
-{
-    private static (IdentityApiClient client, StubHttpMessageHandler handler) MakeClient(HttpResponseMessage response)
-    {
+public class IdentityApiClientTests {
+    private static (IdentityApiClient client, StubHttpMessageHandler handler) MakeClient(HttpResponseMessage response) {
         var handler = new StubHttpMessageHandler(_ => response);
         var http = new HttpClient(handler) { BaseAddress = new Uri("http://identity.internal") };
         http.DefaultRequestHeaders.Add("Authorization", "Bearer test-secret");
@@ -15,8 +13,7 @@ public class IdentityApiClientTests
     }
 
     [Fact]
-    public async Task ResolveAsync_PostsRequestBody_AndParsesResponse()
-    {
+    public async Task ResolveAsync_PostsRequestBody_AndParsesResponse() {
         var expected = new IdentityResolveResponse { UserId = Guid.NewGuid(), Role = "viewer", DiscordId = "d1", IsNew = true };
         var (client, handler) = MakeClient(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(expected) });
 
@@ -31,8 +28,7 @@ public class IdentityApiClientTests
     }
 
     [Fact]
-    public async Task GetAsync_NotFound_ReturnsNull()
-    {
+    public async Task GetAsync_NotFound_ReturnsNull() {
         var (client, _) = MakeClient(new HttpResponseMessage(HttpStatusCode.NotFound));
 
         var result = await client.GetAsync(Guid.NewGuid(), CancellationToken.None);
@@ -41,8 +37,7 @@ public class IdentityApiClientTests
     }
 
     [Fact]
-    public async Task IsRevokedAsync_ParsesBoolBody()
-    {
+    public async Task IsRevokedAsync_ParsesBoolBody() {
         var (client, _) = MakeClient(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(true) });
 
         var result = await client.IsRevokedAsync("sid-1", CancellationToken.None);
@@ -51,8 +46,7 @@ public class IdentityApiClientTests
     }
 
     [Fact]
-    public async Task MergeAsync_ReturnsWinnerUserId()
-    {
+    public async Task MergeAsync_ReturnsWinnerUserId() {
         var keepId = Guid.NewGuid();
         var (client, handler) = MakeClient(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new { userId = keepId }) });
 
@@ -63,8 +57,7 @@ public class IdentityApiClientTests
     }
 
     [Fact]
-    public async Task RedeemAsync_PostsCodeAndReturnsResponse()
-    {
+    public async Task RedeemAsync_PostsCodeAndReturnsResponse() {
         var expected = new RedeemLoginCodeResponse { UserId = Guid.NewGuid(), Role = "viewer", Username = "alice", IsNew = false };
         var (client, handler) = MakeClient(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(expected) });
 

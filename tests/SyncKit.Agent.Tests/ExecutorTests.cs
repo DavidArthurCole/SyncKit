@@ -2,16 +2,13 @@ using SyncKit.Agent;
 
 namespace SyncKit.Agent.Tests;
 
-public class ExecutorTests
-{
+public class ExecutorTests {
     // A step that records it ran and optionally fails / short-circuits, so pipeline flow is testable
     // without real commands.
-    private sealed class FakeStep(string? error = null, bool shortCircuit = false, bool runOnShortCircuit = false) : IStep
-    {
+    private sealed class FakeStep(string? error = null, bool shortCircuit = false, bool runOnShortCircuit = false) : IStep {
         public bool Ran { get; private set; }
         public bool RunOnShortCircuit => runOnShortCircuit;
-        public string? Exec(RunContext c)
-        {
+        public string? Exec(RunContext c) {
             Ran = true;
             c.Out.Append("ran\n");
             if (shortCircuit) c.ShortCircuit = true;
@@ -20,8 +17,7 @@ public class ExecutorTests
     }
 
     [Fact]
-    public void Run_AllSucceed_ReturnsOk()
-    {
+    public void Run_AllSucceed_ReturnsOk() {
         var s1 = new FakeStep();
         var s2 = new FakeStep();
         var res = new Executor { Steps = [s1, s2], Runner = NoRun }.Run();
@@ -31,8 +27,7 @@ public class ExecutorTests
     }
 
     [Fact]
-    public void Run_StopsAtFirstFailure_TailHasError()
-    {
+    public void Run_StopsAtFirstFailure_TailHasError() {
         var s1 = new FakeStep(error: "boom");
         var s2 = new FakeStep();
         var res = new Executor { Steps = [s1, s2], Runner = NoRun }.Run();
@@ -42,8 +37,7 @@ public class ExecutorTests
     }
 
     [Fact]
-    public void Run_ShortCircuit_ReturnsAlreadyUpToDate_SkipsRest()
-    {
+    public void Run_ShortCircuit_ReturnsAlreadyUpToDate_SkipsRest() {
         var s1 = new FakeStep(shortCircuit: true);
         var s2 = new FakeStep();
         var res = new Executor { Steps = [s1, s2], Runner = NoRun }.Run();
@@ -53,8 +47,7 @@ public class ExecutorTests
     }
 
     [Fact]
-    public void Run_ShortCircuit_StillRunsOptedInStep()
-    {
+    public void Run_ShortCircuit_StillRunsOptedInStep() {
         var s1 = new FakeStep(shortCircuit: true);
         var s2 = new FakeStep();
         var s3 = new FakeStep(runOnShortCircuit: true);

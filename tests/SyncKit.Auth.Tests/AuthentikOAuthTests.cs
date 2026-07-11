@@ -3,11 +3,9 @@ using Xunit;
 
 namespace SyncKit.Auth.Tests;
 
-public class AuthentikOAuthTests
-{
+public class AuthentikOAuthTests {
     [Fact]
-    public void AuthUrl_ContainsPkceAndClientId()
-    {
+    public void AuthUrl_ContainsPkceAndClientId() {
         AuthentikOAuth.Init("https://auth.example.com/application/o/synckit-login/", "client123", "secret", "https://identity.example.com/login/callback");
         var (url, state, verifier) = AuthentikOAuth.AuthUrl();
 
@@ -21,8 +19,7 @@ public class AuthentikOAuthTests
     }
 
     [Fact]
-    public void AuthUrl_StateAndVerifierAreRandomPerCall()
-    {
+    public void AuthUrl_StateAndVerifierAreRandomPerCall() {
         AuthentikOAuth.Init("https://auth.example.com/application/o/synckit-login/", "client123", "secret", "https://identity.example.com/login/callback");
         var (_, state1, verifier1) = AuthentikOAuth.AuthUrl();
         var (_, state2, verifier2) = AuthentikOAuth.AuthUrl();
@@ -32,8 +29,7 @@ public class AuthentikOAuthTests
     }
 
     [Fact]
-    public void CodeChallenge_IsS256OfVerifier()
-    {
+    public void CodeChallenge_IsS256OfVerifier() {
         // RFC 7636 Appendix B test vector.
         const string verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
         const string expectedChallenge = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";

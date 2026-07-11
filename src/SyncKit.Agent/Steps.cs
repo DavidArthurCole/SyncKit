@@ -3,20 +3,17 @@ using System.Text.Json;
 
 namespace SyncKit.Agent;
 
-// Pipeline steps, ported from the Go agent (steps.go) one-for-one, plus PortainerUpdateStack. Each
+// Pipeline steps, ported from the Go agent (steps.go) one-for-one, plus PortainerUpdateService. Each
 // returns null on success or an error string on failure. Commands run via RunContext.Run (never throws).
 
 // GitPull pulls the repo, records from/to short hashes, and flags a no-op pull.
-public sealed class GitPull : IStep
-{
-    public string? Exec(RunContext c)
-    {
+public sealed class GitPull : IStep {
+    public string? Exec(RunContext c) {
         c.FromHash = ShortHash(c);
         var (output, ok) = c.Run("git", ["-C", c.Repo, "pull"]);
         c.Out.Append(output);
         if (!ok) return output.Trim().Length > 0 ? output.Trim() : "git pull failed";
-        if (output.Contains("Already up to date."))
-        {
+        if (output.Contains("Already up to date.")) {
             c.ShortCircuit = true;
             c.ToHash = c.FromHash;
             return null;
@@ -25,20 +22,17 @@ public sealed class GitPull : IStep
         return null;
     }
 
-    private static string ShortHash(RunContext c)
-    {
+    private static string ShortHash(RunContext c) {
         var (output, _) = c.Run("git", ["-C", c.Repo, "rev-parse", "--short", "HEAD"]);
         return output.Trim();
     }
 }
 
 // DockerBuild builds the repo into a tagged image.
-public sealed class DockerBuild : IStep
-{
+public sealed class DockerBuild : IStep {
     public string Tag { get; set; } = "";
 
-    public string? Exec(RunContext c)
-    {
+    public string? Exec(RunContext c) {
         var (output, ok) = c.Run("docker", ["build", "-t", Tag, c.Repo]);
         c.Out.Append(output);
         return ok ? null : "docker build failed";
@@ -47,16 +41,14 @@ public sealed class DockerBuild : IStep
 
 // DockerPull pulls an image ref and records from/to identities.
 // With Container set, a no-op pull only short-circuits when that container also already runs the pulled image, so a lagging container still gets reconciled.
-public sealed class DockerPull : IStep
-{
+public sealed class DockerPull : IStep {
     public string Ref { get; set; } = "";
     public string Container { get; set; } = "";
 
     // Must run even after a git-pull short-circuit: the image tag can advance on an unchanged commit.
     public bool RunOnShortCircuit => true;
 
-    public string? Exec(RunContext c)
-    {
+    public string? Exec(RunContext c) {
         // From = what the CONTAINER is running now (the version being replaced), so the embed shows a
         // real old->new even when the image was pre-pulled on an earlier tick. Falls back to the ref's
         // own identity when no container is configured.
@@ -75,8 +67,7 @@ public sealed class DockerPull : IStep
         return null;
     }
 
-    private bool ContainerMatchesImage(RunContext c)
-    {
+    private bool ContainerMatchesImage(RunContext c) {
         if (Container == "") return true;
         var (imgOut, imgOk) = c.Run("docker", ["image", "inspect", "--format", "{{.Id}}", Ref]);
         if (!imgOk) return true;
@@ -86,15 +77,13 @@ public sealed class DockerPull : IStep
     }
 
     // Identity of the image a running container is on (its image ID -> revision label).
-    private static (string?, string?) ContainerIdent(RunContext c, string container)
-    {
+    private static (string?, string?) ContainerIdent(RunContext c, string container) {
         var (idOut, ok) = c.Run("docker", ["inspect", "--format", "{{.Image}}", container]);
         if (!ok) return (null, null);
         return IdentFromImageId(c, idOut.Trim());
     }
 
-    private static (string?, string?) ImageIdent(RunContext c, string imageRef)
-    {
+    private static (string?, string?) ImageIdent(RunContext c, string imageRef) {
         var (output, ok) = c.Run("docker",
             ["image", "inspect", "--format", "{{.Id}} {{index .Config.Labels \"org.opencontainers.image.revision\"}}", imageRef]);
         if (!ok) return (null, null);
@@ -102,8 +91,7 @@ public sealed class DockerPull : IStep
     }
 
     // Resolve an image ID (sha256:...) to its (revision-or-digest, commit-url).
-    private static (string?, string?) IdentFromImageId(RunContext c, string imageId)
-    {
+    private static (string?, string?) IdentFromImageId(RunContext c, string imageId) {
         if (imageId == "") return (null, null);
         var (output, ok) = c.Run("docker",
             ["image", "inspect", "--format", "{{.Id}} {{index .Config.Labels \"org.opencontainers.image.revision\"}}", imageId]);
@@ -111,14 +99,12 @@ public sealed class DockerPull : IStep
         return ParseIdent(c, output);
     }
 
-    private static (string?, string?) ParseIdent(RunContext c, string inspectOutput)
-    {
+    private static (string?, string?) ParseIdent(RunContext c, string inspectOutput) {
         var trimmed = inspectOutput.Trim();
         var space = trimmed.IndexOf(' ');
         var id = space < 0 ? trimmed : trimmed[..space];
         var rev = space < 0 ? "" : trimmed[(space + 1)..].Trim();
-        if (rev != "" && rev != "<no value>")
-        {
+        if (rev is not ("" or "<no value>")) {
             var url = c.RepoUrl != "" ? c.RepoUrl.TrimEnd('/') + "/commit/" + rev : "";
             return (ShortSha(rev), url == "" ? null : url);
         }
@@ -127,61 +113,52 @@ public sealed class DockerPull : IStep
 
     private static string ShortSha(string sha) => sha.Length > 7 ? sha[..7] : sha;
 
-    private static string ShortDigest(string id)
-    {
-        id = id.StartsWith("sha256:") ? id["sha256:".Length..] : id;
+    private static string ShortDigest(string id) {
+        id = id.StartsWith("sha256:", StringComparison.Ordinal) ? id["sha256:".Length..] : id;
         return id.Length > 12 ? id[..12] : id;
     }
 }
 
 // ContainerRecreate is a deprecated no-op kept so existing yaml still parses. The old stop+rm left a
 // downtime window; the deploy recreates in place (Portainer step / webhook) instead.
-public sealed class ContainerRecreate : IStep
-{
+public sealed class ContainerRecreate : IStep {
     public string Name { get; set; } = "";
 
-    public string? Exec(RunContext c)
-    {
+    public string? Exec(RunContext c) {
         c.Out.Append($"container-recreate {Name}: skipped (deploy recreates in place)\n");
         return null;
     }
 }
 
 // Webhook POSTs to a URL (literal or resolved from an env var). Non-2xx fails. Kept for parity; the
-// Portainer webhook does NOT re-pull an unchanged :latest, so prefer PortainerUpdateStack.
-public sealed class Webhook : IStep
-{
+// Portainer webhook does NOT re-pull an unchanged :latest, so prefer PortainerUpdateService.
+public sealed class Webhook : IStep {
     public string Url { get; set; } = "";
     public string UrlEnv { get; set; } = "";
 
-    public string? Exec(RunContext c)
-    {
+    public string? Exec(RunContext c) {
         var url = Url;
         if (url == "" && UrlEnv != "") url = Environment.GetEnvironmentVariable(UrlEnv) ?? "";
         if (url == "") return "webhook: no URL";
-        try
-        {
+        try {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
             var resp = http.PostAsync(url, null).GetAwaiter().GetResult();
             c.Out.Append($"webhook {url} -> {(int)resp.StatusCode}\n");
             if (!resp.IsSuccessStatusCode) return $"webhook returned {(int)resp.StatusCode}";
             return null;
-        }
-        catch (Exception e) { return $"webhook: {e.Message}"; }
+        } catch (Exception e) { return $"webhook: {e.Message}"; }
     }
 }
 
 // Shell runs an arbitrary command. The escape hatch.
-public sealed class Shell : IStep
-{
+public sealed class Shell : IStep {
     public string Run { get; set; } = "";
     public string Dir { get; set; } = "";
     public bool Always { get; set; }
 
     public bool RunOnShortCircuit => Always;
 
-    public string? Exec(RunContext c)
-    {
+    public string? Exec(RunContext c) {
         var dir = Dir != "" ? Dir : c.Repo;
         var (output, ok) = c.Run("sh", ["-c", $"cd {dir} && {Run}"]);
         c.Out.Append(output);
@@ -191,18 +168,15 @@ public sealed class Shell : IStep
 
 // AppCallback POSTs to an app-owned endpoint for deploy logic SyncKit has no business knowing about.
 // Bearer-gated, same shape as DEPLOY_AGENT_SECRET/POST /deploy but inverted.
-public sealed class AppCallback : IStep
-{
+public sealed class AppCallback : IStep {
     public string UrlEnv { get; set; } = "";
     public string SecretEnv { get; set; } = "";
 
-    public string? Exec(RunContext c)
-    {
+    public string? Exec(RunContext c) {
         var url = Environment.GetEnvironmentVariable(UrlEnv) ?? "";
         if (url == "") return $"app-callback: {UrlEnv} unset";
         var secret = SecretEnv != "" ? Environment.GetEnvironmentVariable(SecretEnv) ?? "" : "";
-        try
-        {
+        try {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
             if (secret != "")
                 http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", secret);
@@ -210,14 +184,12 @@ public sealed class AppCallback : IStep
             var body = resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
             c.Out.Append(body).Append('\n');
             return resp.IsSuccessStatusCode ? null : $"app-callback {url} -> {(int)resp.StatusCode}";
-        }
-        catch (Exception e) { return $"app-callback: {e.Message}"; }
+        } catch (Exception e) { return $"app-callback: {e.Message}"; }
     }
 }
 
 // The stack webhook alone no-ops on an unchanged :latest tag, so this PUTs the stack directly to force a real re-pull + recreate.
-public sealed class PortainerUpdateStack : IStep
-{
+public sealed class PortainerUpdateService : IStep {
     public string UrlEnv { get; set; } = "PORTAINER_API_URL";
     public string KeyEnv { get; set; } = "PORTAINER_API_KEY";
     public string StackIdEnv { get; set; } = "PORTAINER_STACK_ID";
@@ -225,8 +197,7 @@ public sealed class PortainerUpdateStack : IStep
     // false avoids a 500 on stacks mixing registry + locally-built images, since Portainer tries to pull the local-only ones too.
     public bool PullImage { get; set; }
 
-    public string? Exec(RunContext c)
-    {
+    public string? Exec(RunContext c) {
         var baseUrl = (Environment.GetEnvironmentVariable(UrlEnv) ?? "").TrimEnd('/');
         var key = Environment.GetEnvironmentVariable(KeyEnv) ?? "";
         var stackId = Environment.GetEnvironmentVariable(StackIdEnv) ?? "";
@@ -234,8 +205,7 @@ public sealed class PortainerUpdateStack : IStep
         if (baseUrl == "" || key == "" || stackId == "" || endpointId == "")
             return $"portainer-update-stack: missing env ({UrlEnv}/{KeyEnv}/{StackIdEnv}/{EndpointIdEnv})";
 
-        try
-        {
+        try {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
             http.DefaultRequestHeaders.Add("X-API-Key", key);
 
@@ -260,8 +230,7 @@ public sealed class PortainerUpdateStack : IStep
                 : default;
 
             // 2. PUT with pullImage=true to force the re-pull + recreate.
-            var payload = new Dictionary<string, object?>
-            {
+            var payload = new Dictionary<string, object?> {
                 ["stackFileContent"] = composeContent,
                 ["pullImage"] = PullImage,
                 ["prune"] = false,
@@ -278,8 +247,7 @@ public sealed class PortainerUpdateStack : IStep
             if (!putResp.IsSuccessStatusCode)
                 return $"portainer-update-stack: PUT {(int)putResp.StatusCode}: {Trunc(putBody)}";
             return null;
-        }
-        catch (Exception e) { return $"portainer-update-stack: {e.Message}"; }
+        } catch (Exception e) { return $"portainer-update-stack: {e.Message}"; }
     }
 
     private static string Trunc(string s) => s.Length <= 300 ? s : s[..300];

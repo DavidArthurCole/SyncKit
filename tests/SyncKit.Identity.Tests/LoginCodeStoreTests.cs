@@ -5,28 +5,24 @@ using Xunit;
 
 namespace SyncKit.Identity.Tests;
 
-public class LoginCodeStoreTests
-{
+public class LoginCodeStoreTests {
     private static string? ConnString => Environment.GetEnvironmentVariable("SYNCKIT_TEST_PG_CONN");
 
-    private static async Task<NpgsqlDataSource> MakeDbAsync()
-    {
+    private static async Task<NpgsqlDataSource> MakeDbAsync() {
         var dataSource = NpgsqlDataSource.Create(ConnString!);
         await using var conn = await dataSource.OpenConnectionAsync();
         await Migrator.MigrateAsync(conn, Path.Combine(AppContext.BaseDirectory, "Migrations"));
         return dataSource;
     }
 
-    private static async Task<Guid> SeedUserAsync(NpgsqlDataSource db)
-    {
+    private static async Task<Guid> SeedUserAsync(NpgsqlDataSource db) {
         var resolver = new IdentityResolver(db, AdminAllowlist.FromConfig(""));
         var result = await resolver.ResolveAsync("authentik", Guid.NewGuid().ToString(), null, "codeuser", null, CancellationToken.None);
         return result.UserId;
     }
 
     [Fact]
-    public async Task IssueAsync_ThenRedeemAsync_ReturnsUserId()
-    {
+    public async Task IssueAsync_ThenRedeemAsync_ReturnsUserId() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var userId = await SeedUserAsync(db);
@@ -41,8 +37,7 @@ public class LoginCodeStoreTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task IssueAsync_ThenRedeemAsync_PreservesIsNew(bool isNew)
-    {
+    public async Task IssueAsync_ThenRedeemAsync_PreservesIsNew(bool isNew) {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var userId = await SeedUserAsync(db);
@@ -55,8 +50,7 @@ public class LoginCodeStoreTests
     }
 
     [Fact]
-    public async Task RedeemAsync_SecondAttempt_ReturnsNull()
-    {
+    public async Task RedeemAsync_SecondAttempt_ReturnsNull() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var userId = await SeedUserAsync(db);
@@ -70,8 +64,7 @@ public class LoginCodeStoreTests
     }
 
     [Fact]
-    public async Task RedeemAsync_UnknownCode_ReturnsNull()
-    {
+    public async Task RedeemAsync_UnknownCode_ReturnsNull() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var store = new LoginCodeStore(db);
@@ -82,8 +75,7 @@ public class LoginCodeStoreTests
     }
 
     [Fact]
-    public async Task RedeemAsync_ExpiredCode_ReturnsNull()
-    {
+    public async Task RedeemAsync_ExpiredCode_ReturnsNull() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var userId = await SeedUserAsync(db);

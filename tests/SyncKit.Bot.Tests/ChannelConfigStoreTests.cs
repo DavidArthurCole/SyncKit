@@ -1,0 +1,74 @@
+using Npgsql;
+using SyncKit.Bot;
+using SyncKit.Db;
+using Xunit;
+
+namespace SyncKit.Bot.Tests;
+
+// DB-gated: same pattern as ChannelStateStoreTests (plain Fact + early return when unset).
+public class ChannelConfigStoreTests {
+    private static string? ConnString => Environment.GetEnvironmentVariable("SYNCKIT_TEST_PG_CONN");
+
+    private static async Task<NpgsqlDataSource> MakeDbAsync() {
+        var dataSource = NpgsqlDataSource.Create(ConnString!);
+        await using var conn = await dataSource.OpenConnectionAsync();
+        await Migrator.MigrateAsync(conn, Path.Combine(AppContext.BaseDirectory, "Migrations"));
+        return dataSource;
+    }
+
+    [Fact]
+    public async Task GetAsync_NoRow_ReturnsNull() {
+        if (string.IsNullOrEmpty(ConnString)) return;
+        await using var db = await MakeDbAsync();
+        var store = new ChannelConfigStore(db);
+
+        var result = await store.GetAsync("guild-cc-missing", "eggledger", CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_ThenGetAsync_RoundTrips() {
+        if (string.IsNullOrEmpty(ConnString)) return;
+        await using var db = await MakeDbAsync();
+        var store = new ChannelConfigStore(db);
+
+        await store.UpsertAsync("guild-cc-1", "eggledger", "111", "DeployNotifications",
+            "{{ ToHash }}", "{{ Tail }}", "up to date", CancellationToken.None);
+        var result = await store.GetAsync("guild-cc-1", "eggledger", CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal("111", result!.DashboardChannelId);
+        Assert.Equal("DeployNotifications", result.EnabledThreads);
+        Assert.Equal("{{ ToHash }}", result.SuccessTemplate);
+        Assert.Equal("{{ Tail }}", result.FailureTemplate);
+        Assert.Equal("up to date", result.AlreadyUpToDateTemplate);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_Conflict_UpdatesInPlace() {
+        if (string.IsNullOrEmpty(ConnString)) return;
+        await using var db = await MakeDbAsync();
+        var store = new ChannelConfigStore(db);
+
+        await store.UpsertAsync("guild-cc-2", "eggledger", "111", null, null, null, null, CancellationToken.None);
+        await store.UpsertAsync("guild-cc-2", "eggledger", "222", null, null, null, null, CancellationToken.None);
+        var result = await store.GetAsync("guild-cc-2", "eggledger", CancellationToken.None);
+
+        Assert.Equal("222", result!.DashboardChannelId);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_NullFields_StoreAsNull() {
+        if (string.IsNullOrEmpty(ConnString)) return;
+        await using var db = await MakeDbAsync();
+        var store = new ChannelConfigStore(db);
+
+        await store.UpsertAsync("guild-cc-3", "eggledger", null, null, null, null, null, CancellationToken.None);
+        var result = await store.GetAsync("guild-cc-3", "eggledger", CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Null(result!.DashboardChannelId);
+        Assert.Null(result.SuccessTemplate);
+    }
+}

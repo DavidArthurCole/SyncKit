@@ -3,8 +3,7 @@ using SyncKit.Contract;
 
 namespace SyncKit.Agent.Tests;
 
-public class WatcherTests
-{
+public class WatcherTests {
     private static Watcher New() => new("t", TimeSpan.FromMinutes(1), "http://hook", () => (new DeployResponse(), true));
 
     [Fact]
@@ -12,16 +11,14 @@ public class WatcherTests
         Assert.Null(New().Decide(new DeployResponse { Ok = true, AlreadyUpToDate = true }));
 
     [Fact]
-    public void Decide_Success_PostsGreenEmbed()
-    {
+    public void Decide_Success_PostsGreenEmbed() {
         var payload = New().Decide(new DeployResponse { Ok = true, FromHash = "a", ToHash = "b" });
         Assert.NotNull(payload);
         Assert.Contains("Auto-deployed", payload);
     }
 
     [Fact]
-    public void Decide_Failure_PostsOnceThenDedupes()
-    {
+    public void Decide_Failure_PostsOnceThenDedupes() {
         var w = New();
         var fail = new DeployResponse { Ok = false, Tail = "same error" };
         Assert.NotNull(w.Decide(fail));   // first failure posts
@@ -29,8 +26,7 @@ public class WatcherTests
     }
 
     [Fact]
-    public void Decide_Failure_ResetsAfterSuccess()
-    {
+    public void Decide_Failure_ResetsAfterSuccess() {
         var w = New();
         var fail = new DeployResponse { Ok = false, Tail = "err" };
         Assert.NotNull(w.Decide(fail));
@@ -39,15 +35,13 @@ public class WatcherTests
     }
 
     [Fact]
-    public void Decide_DockerDown_Silent()
-    {
+    public void Decide_DockerDown_Silent() {
         var tail = "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?";
         Assert.Null(New().Decide(new DeployResponse { Ok = false, Tail = tail }));
     }
 
     [Fact]
-    public void Decide_DockerDown_DoesNotDisturbDedupe()
-    {
+    public void Decide_DockerDown_DoesNotDisturbDedupe() {
         var w = New();
         var real = new DeployResponse { Ok = false, Tail = "real build error" };
         var docker = new DeployResponse { Ok = false, Tail = "Cannot connect to the Docker daemon at unix:///var/run/docker.sock." };
@@ -66,8 +60,7 @@ public class WatcherTests
         Assert.Null(New().Decide(new DeployResponse { Ok = false, Tail = tail }));
 
     [Fact]
-    public void Decide_TransientError_DoesNotDisturbDedupe()
-    {
+    public void Decide_TransientError_DoesNotDisturbDedupe() {
         var w = New();
         var real = new DeployResponse { Ok = false, Tail = "real build error" };
         var transient = new DeployResponse { Ok = false, Tail = "Get \"https://ghcr.io/v2/\": context deadline exceeded" };

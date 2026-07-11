@@ -13,23 +13,18 @@ public sealed record CommandShape(string Name, string Description, IReadOnlyList
 
 // Structural signature of the command set (name/desc/option tree, order-insensitive). Coarse on purpose:
 // context/integration-type not captured, so bump a description to force a re-push.
-public static class CommandSignature
-{
-    public static string Compute(IEnumerable<CommandShape> commands)
-    {
+public static class CommandSignature {
+    public static string Compute(IEnumerable<CommandShape> commands) {
         var sb = new StringBuilder();
-        foreach (var c in commands.OrderBy(c => c.Name, StringComparer.Ordinal))
-        {
+        foreach (var c in commands.OrderBy(c => c.Name, StringComparer.Ordinal)) {
             sb.Append(c.Name).Append('|').Append(c.Description).Append('\n');
             AppendOptions(sb, c.Options, depth: 1);
         }
         return sb.ToString();
     }
 
-    private static void AppendOptions(StringBuilder sb, IReadOnlyList<OptionShape> options, int depth)
-    {
-        foreach (var o in options)
-        {
+    private static void AppendOptions(StringBuilder sb, IReadOnlyList<OptionShape> options, int depth) {
+        foreach (var o in options) {
             sb.Append('>', depth).Append(o.Name).Append('|').Append(o.Description).Append('|')
               .Append(o.Type).Append('|').Append(o.Required ? 'r' : '-')
               .Append(o.Autocomplete ? 'a' : '-').Append('\n');
@@ -38,8 +33,7 @@ public static class CommandSignature
     }
 
     // Shape of the catalog we are about to push.
-    public static CommandShape FromProperties(ApplicationCommandProperties props)
-    {
+    public static CommandShape FromProperties(ApplicationCommandProperties props) {
         var slash = props as SlashCommandProperties;
         return new CommandShape(
             props.Name.GetValueOrDefault() ?? "",
@@ -62,8 +56,7 @@ public static class CommandSignature
 
     private static bool Flag(bool? value) => value ?? false;
 
-    private static IReadOnlyList<OptionShape> ToShapes(IEnumerable<OptionShape>? shapes)
-    {
+    private static IReadOnlyList<OptionShape> ToShapes(IEnumerable<OptionShape>? shapes) {
         if (shapes is null) return Array.Empty<OptionShape>();
         return shapes.ToList();
     }

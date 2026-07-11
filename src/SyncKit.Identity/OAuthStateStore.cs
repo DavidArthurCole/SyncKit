@@ -6,12 +6,10 @@ public sealed record OAuthState(string CodeVerifier, string ReturnOrigin);
 
 // Server-side state for the /login/start -> /login/callback round trip. Single-use: consumed
 // (deleted) on lookup so a state value can't be replayed against /login/callback twice.
-public sealed class OAuthStateStore(NpgsqlDataSource dataSource, TimeSpan? ttl = null)
-{
+public sealed class OAuthStateStore(NpgsqlDataSource dataSource, TimeSpan? ttl = null) {
     private readonly TimeSpan _ttl = ttl ?? TimeSpan.FromMinutes(5);
 
-    public async Task SaveAsync(string state, string codeVerifier, string returnOrigin, CancellationToken ct)
-    {
+    public async Task SaveAsync(string state, string codeVerifier, string returnOrigin, CancellationToken ct) {
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand(
             "INSERT INTO oauth_states (state, code_verifier, return_origin, expires_at) VALUES ($1, $2, $3, $4)", conn);
@@ -22,8 +20,7 @@ public sealed class OAuthStateStore(NpgsqlDataSource dataSource, TimeSpan? ttl =
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public async Task<OAuthState?> ConsumeAsync(string state, CancellationToken ct)
-    {
+    public async Task<OAuthState?> ConsumeAsync(string state, CancellationToken ct) {
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand(
             "DELETE FROM oauth_states WHERE state = $1 AND expires_at > now() RETURNING code_verifier, return_origin", conn);

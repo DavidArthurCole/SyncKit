@@ -6,10 +6,8 @@ namespace SyncKit.Identity.Tools;
 // Idempotent: ON CONFLICT DO NOTHING on both tables, so re-running after a partial failure
 // (or re-running the whole tool after new source rows appear) never duplicates or clobbers.
 // One transaction for the whole write.
-public static class CutoverWriter
-{
-    public static async Task WriteAsync(string targetConnString, MergeResult merge, CancellationToken ct)
-    {
+public static class CutoverWriter {
+    public static async Task WriteAsync(string targetConnString, MergeResult merge, CancellationToken ct) {
         await using var db = NpgsqlDataSource.Create(targetConnString);
         await using var conn = await db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
@@ -22,8 +20,7 @@ public static class CutoverWriter
         await tx.CommitAsync(ct);
     }
 
-    private static async Task InsertUserAsync(NpgsqlConnection conn, User user, CancellationToken ct)
-    {
+    private static async Task InsertUserAsync(NpgsqlConnection conn, User user, CancellationToken ct) {
         await using var cmd = new NpgsqlCommand(
             """
             INSERT INTO users (user_id, discord_id, username, avatar, role, created_at, last_login_at)
@@ -40,8 +37,7 @@ public static class CutoverWriter
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    private static async Task InsertIdentityAsync(NpgsqlConnection conn, Models.Identity identity, CancellationToken ct)
-    {
+    private static async Task InsertIdentityAsync(NpgsqlConnection conn, Models.Identity identity, CancellationToken ct) {
         await using var cmd = new NpgsqlCommand(
             """
             INSERT INTO identities (user_id, provider, subject, linked_at)

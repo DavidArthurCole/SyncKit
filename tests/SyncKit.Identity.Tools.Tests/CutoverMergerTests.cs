@@ -3,14 +3,12 @@ using Xunit;
 
 namespace SyncKit.Identity.Tools.Tests;
 
-public class CutoverMergerTests
-{
+public class CutoverMergerTests {
     private static readonly DateTimeOffset T0 = DateTimeOffset.Parse("2026-06-10T00:00:00Z");
     private static readonly DateTimeOffset T1 = DateTimeOffset.Parse("2026-06-11T00:00:00Z");
 
     [Fact]
-    public void Merge_NoOverlap_PassesBothSidesThrough()
-    {
+    public void Merge_NoOverlap_PassesBothSidesThrough() {
         var egi = new SourceSnapshot(
             [new SourceUser(Guid.NewGuid(), "111", "alice", null, "admin", T0, T0)],
             []);
@@ -27,8 +25,7 @@ public class CutoverMergerTests
     }
 
     [Fact]
-    public void Merge_OverlappingDiscordId_KeepsEggIncognitoUserId()
-    {
+    public void Merge_OverlappingDiscordId_KeepsEggIncognitoUserId() {
         var egiUserId = Guid.NewGuid();
         var ledgerUserId = Guid.NewGuid();
         var egi = new SourceSnapshot(
@@ -47,8 +44,7 @@ public class CutoverMergerTests
     }
 
     [Fact]
-    public void Merge_OverlappingDiscordId_RemapsLedgerIdentitiesOntoKeptUserId()
-    {
+    public void Merge_OverlappingDiscordId_RemapsLedgerIdentitiesOntoKeptUserId() {
         var egiUserId = Guid.NewGuid();
         var ledgerUserId = Guid.NewGuid();
         var egi = new SourceSnapshot(
@@ -67,8 +63,7 @@ public class CutoverMergerTests
     }
 
     [Fact]
-    public void Merge_DuplicateIdentityAcrossSides_KeepsEarliestLinked()
-    {
+    public void Merge_DuplicateIdentityAcrossSides_KeepsEarliestLinked() {
         var egiUserId = Guid.NewGuid();
         var ledgerUserId = Guid.NewGuid();
         var egi = new SourceSnapshot(
@@ -86,8 +81,7 @@ public class CutoverMergerTests
     }
 
     [Fact]
-    public void Merge_LedgerUserWithNullRole_DefaultsToViewer()
-    {
+    public void Merge_LedgerUserWithNullRole_DefaultsToViewer() {
         var egi = new SourceSnapshot([], []);
         var ledger = new SourceSnapshot(
             [new SourceUser(Guid.NewGuid(), "555", "erin", null, null, T0, null)], []);
@@ -98,8 +92,7 @@ public class CutoverMergerTests
     }
 
     [Fact]
-    public void Merge_LedgerUserWithNullLastLogin_FallsBackToCreatedAt()
-    {
+    public void Merge_LedgerUserWithNullLastLogin_FallsBackToCreatedAt() {
         var egi = new SourceSnapshot([], []);
         var ledger = new SourceSnapshot(
             [new SourceUser(Guid.NewGuid(), "555", "erin", null, null, T0, null)], []);
@@ -110,8 +103,7 @@ public class CutoverMergerTests
     }
 
     [Fact]
-    public void Merge_IdentityReferencingUnknownUserId_SkippedAsOrphanNotThrown()
-    {
+    public void Merge_IdentityReferencingUnknownUserId_SkippedAsOrphanNotThrown() {
         var orphanUserId = Guid.NewGuid();
         var egi = new SourceSnapshot(
             [],
@@ -127,8 +119,7 @@ public class CutoverMergerTests
     }
 
     [Fact]
-    public void Merge_UsersWithoutDiscordId_NeverCollide()
-    {
+    public void Merge_UsersWithoutDiscordId_NeverCollide() {
         var egi = new SourceSnapshot(
             [new SourceUser(Guid.NewGuid(), null, "authentik-only-1", null, "viewer", T0, T0)], []);
         var ledger = new SourceSnapshot(

@@ -1,7 +1,6 @@
 namespace SyncKit.Identity.Models;
 
-public sealed class User
-{
+public sealed class User {
     public Guid UserId { get; set; }
     public string? DiscordId { get; set; }
     public string Username { get; set; } = "";

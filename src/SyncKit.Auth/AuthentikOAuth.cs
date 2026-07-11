@@ -10,30 +10,26 @@ public sealed record AuthentikTokenResult(string Sub, string? DiscordId, string?
 // PKCE authorization-code flow against a self-hosted Authentik instance. Hand-rolled to match
 // DiscordOAuth.cs's shape exactly (this repo has no ASP.NET OIDC-handler/IConfiguration
 // convention anywhere) rather than pulling in Microsoft.AspNetCore.Authentication.OpenIdConnect.
-public static class AuthentikOAuth
-{
+public static class AuthentikOAuth {
     private static string _authority = "";
     private static string _clientId = "";
     private static string _clientSecret = "";
     private static string _redirectUrl = "";
     private static readonly HttpClient Http = new();
 
-    public static void Init(string authority, string clientId, string clientSecret, string redirectUrl)
-    {
+    public static void Init(string authority, string clientId, string clientSecret, string redirectUrl) {
         _authority = authority.TrimEnd('/');
         _clientId = clientId;
         _clientSecret = clientSecret;
         _redirectUrl = redirectUrl;
     }
 
-    public static (string Url, string State, string CodeVerifier) AuthUrl()
-    {
+    public static (string Url, string State, string CodeVerifier) AuthUrl() {
         var state = DiscordOAuth.RandomHex(16);
         var verifier = GenerateCodeVerifier();
         var challenge = ComputeCodeChallenge(verifier);
 
-        var query = new Dictionary<string, string>
-        {
+        var query = new Dictionary<string, string> {
             ["client_id"] = _clientId,
             ["redirect_uri"] = _redirectUrl,
             ["response_type"] = "code",
@@ -47,10 +43,8 @@ public static class AuthentikOAuth
         return ($"{_authority}/if/flow/default-authentication-flow/?{qs}", state, verifier);
     }
 
-    public static async Task<AuthentikTokenResult> HandleCallbackAsync(string code, string codeVerifier, CancellationToken ct = default)
-    {
-        var tokenResp = await Http.PostAsync($"{_authority}/token/", new FormUrlEncodedContent(new Dictionary<string, string>
-        {
+    public static async Task<AuthentikTokenResult> HandleCallbackAsync(string code, string codeVerifier, CancellationToken ct = default) {
+        var tokenResp = await Http.PostAsync($"{_authority}/token/", new FormUrlEncodedContent(new Dictionary<string, string> {
             ["client_id"] = _clientId,
             ["client_secret"] = _clientSecret,
             ["grant_type"] = "authorization_code",
@@ -82,14 +76,12 @@ public static class AuthentikOAuth
             Avatar: root.TryGetProperty("picture", out var av) ? av.GetString() : null);
     }
 
-    private static string GenerateCodeVerifier()
-    {
+    private static string GenerateCodeVerifier() {
         var bytes = RandomNumberGenerator.GetBytes(32);
         return Base64UrlEncode(bytes);
     }
 
-    public static string ComputeCodeChallenge(string verifier)
-    {
+    public static string ComputeCodeChallenge(string verifier) {
         var hash = SHA256.HashData(Encoding.ASCII.GetBytes(verifier));
         return Base64UrlEncode(hash);
     }

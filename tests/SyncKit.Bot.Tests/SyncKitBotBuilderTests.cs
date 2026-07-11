@@ -5,14 +5,11 @@ using Xunit;
 
 namespace SyncKit.Bot.Tests;
 
-public class SyncKitBotBuilderTests
-{
+public class SyncKitBotBuilderTests {
     [Fact]
-    public void WithConfigFile_MissingFile_FallsBackToEnv_BuildsConfigWithEnvValues()
-    {
+    public void WithConfigFile_MissingFile_FallsBackToEnv_BuildsConfigWithEnvValues() {
         Environment.SetEnvironmentVariable("SYNCKIT_BOT_BUILDER_TEST_TOKEN", "env-token");
-        try
-        {
+        try {
             var cfg = new SyncKitBotBuilder()
                 .WithConfigFile(Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".env"))
                 .WithName("Test")
@@ -23,13 +20,11 @@ public class SyncKitBotBuilderTests
 
             Assert.Equal("env-token", cfg.Token);
             Assert.Equal("Test", cfg.Name);
-        }
-        finally { Environment.SetEnvironmentVariable("SYNCKIT_BOT_BUILDER_TEST_TOKEN", null); }
+        } finally { Environment.SetEnvironmentVariable("SYNCKIT_BOT_BUILDER_TEST_TOKEN", null); }
     }
 
     [Fact]
-    public void WithCommand_AddsToExtra()
-    {
+    public void WithCommand_AddsToExtra() {
         var cmd = new BotCommand(
             new SlashCommandBuilder().WithName("mystats").WithDescription("d").Build(),
             "mystats",
@@ -46,8 +41,7 @@ public class SyncKitBotBuilderTests
     }
 
     [Fact]
-    public void WithGlobalCommands_SetsFlag()
-    {
+    public void WithGlobalCommands_SetsFlag() {
         var cfg = new SyncKitBotBuilder()
             .WithName("Test")
             .WithEnvFallback(_ => null)
@@ -58,8 +52,7 @@ public class SyncKitBotBuilderTests
     }
 
     [Fact]
-    public void WithBuild_SetsVerifyInfo()
-    {
+    public void WithBuild_SetsVerifyInfo() {
         var build = new VerifyInfo { Sha256 = "abc", Version = "v1", Date = "2026-01-01" };
 
         var cfg = new SyncKitBotBuilder()
@@ -72,8 +65,7 @@ public class SyncKitBotBuilderTests
     }
 
     [Fact]
-    public void VerifyEmbed_DelegateWinsOverOptions_WhenBothSet()
-    {
+    public void VerifyEmbed_DelegateWinsOverOptions_WhenBothSet() {
         var builder = new SyncKitBotBuilder()
             .WithName("Test")
             .WithEnvFallback(_ => null)
@@ -85,8 +77,7 @@ public class SyncKitBotBuilderTests
     }
 
     [Fact]
-    public void VerifyEmbed_OptionsOnly_AppliesOverDefault()
-    {
+    public void VerifyEmbed_OptionsOnly_AppliesOverDefault() {
         var builder = new SyncKitBotBuilder()
             .WithName("Test")
             .WithEnvFallback(_ => null)
@@ -97,8 +88,7 @@ public class SyncKitBotBuilderTests
     }
 
     [Fact]
-    public void VerifyEmbed_NoOverride_UsesDefault()
-    {
+    public void VerifyEmbed_NoOverride_UsesDefault() {
         var builder = new SyncKitBotBuilder()
             .WithName("Test")
             .WithEnvFallback(_ => null);

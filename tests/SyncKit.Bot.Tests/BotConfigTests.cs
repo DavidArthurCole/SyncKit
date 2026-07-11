@@ -4,11 +4,9 @@ using Xunit;
 
 namespace SyncKit.Bot.Tests;
 
-public class BotConfigTests
-{
+public class BotConfigTests {
     [Fact]
-    public void Defaults_GlobalCommandsAndGuildMirrorFalse_SupporterRoleEmpty()
-    {
+    public void Defaults_GlobalCommandsAndGuildMirrorFalse_SupporterRoleEmpty() {
         var cfg = new BotConfig();
 
         Assert.False(cfg.GlobalCommands);
@@ -17,8 +15,7 @@ public class BotConfigTests
     }
 
     [Fact]
-    public void BotCommand_AutocompleteHandler_DefaultsToNull()
-    {
+    public void BotCommand_AutocompleteHandler_DefaultsToNull() {
         var cmd = new BotCommand(
             new SlashCommandBuilder().WithName("x").WithDescription("d").Build(),
             "x",

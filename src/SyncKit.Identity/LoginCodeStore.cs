@@ -8,12 +8,10 @@ namespace SyncKit.Identity;
 // the same code can never both succeed.
 public sealed record RedeemedLogin(Guid UserId, bool IsNew);
 
-public sealed class LoginCodeStore(NpgsqlDataSource dataSource, TimeSpan? ttl = null)
-{
+public sealed class LoginCodeStore(NpgsqlDataSource dataSource, TimeSpan? ttl = null) {
     private readonly TimeSpan _ttl = ttl ?? TimeSpan.FromSeconds(60);
 
-    public async Task<string> IssueAsync(Guid userId, bool isNew, CancellationToken ct)
-    {
+    public async Task<string> IssueAsync(Guid userId, bool isNew, CancellationToken ct) {
         var code = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand(
@@ -26,8 +24,7 @@ public sealed class LoginCodeStore(NpgsqlDataSource dataSource, TimeSpan? ttl = 
         return code;
     }
 
-    public async Task<RedeemedLogin?> RedeemAsync(string code, CancellationToken ct)
-    {
+    public async Task<RedeemedLogin?> RedeemAsync(string code, CancellationToken ct) {
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand(
             """

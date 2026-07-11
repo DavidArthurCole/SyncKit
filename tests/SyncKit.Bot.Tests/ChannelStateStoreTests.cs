@@ -6,12 +6,10 @@ using Xunit;
 namespace SyncKit.Bot.Tests;
 
 // DB-gated: same pattern as SyncKit.Identity.Tests (plain Fact + early return when unset).
-public class ChannelStateStoreTests
-{
+public class ChannelStateStoreTests {
     private static string? ConnString => Environment.GetEnvironmentVariable("SYNCKIT_TEST_PG_CONN");
 
-    private static async Task<NpgsqlDataSource> MakeDbAsync()
-    {
+    private static async Task<NpgsqlDataSource> MakeDbAsync() {
         var dataSource = NpgsqlDataSource.Create(ConnString!);
         await using var conn = await dataSource.OpenConnectionAsync();
         await Migrator.MigrateAsync(conn, Path.Combine(AppContext.BaseDirectory, "Migrations"));
@@ -19,8 +17,7 @@ public class ChannelStateStoreTests
     }
 
     [Fact]
-    public async Task UpsertAsync_ThenGetAsync_RoundTrips()
-    {
+    public async Task UpsertAsync_ThenGetAsync_RoundTrips() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var store = new ChannelStateStore(db);
@@ -34,8 +31,7 @@ public class ChannelStateStoreTests
     }
 
     [Fact]
-    public async Task UpsertAsync_Conflict_UpdatesInPlace()
-    {
+    public async Task UpsertAsync_Conflict_UpdatesInPlace() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var store = new ChannelStateStore(db);
@@ -48,8 +44,7 @@ public class ChannelStateStoreTests
     }
 
     [Fact]
-    public async Task DeleteAsync_RemovesRow()
-    {
+    public async Task DeleteAsync_RemovesRow() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var store = new ChannelStateStore(db);
@@ -62,8 +57,7 @@ public class ChannelStateStoreTests
     }
 
     [Fact]
-    public async Task ListAsync_ScopedToGuildAndApp()
-    {
+    public async Task ListAsync_ScopedToGuildAndApp() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var store = new ChannelStateStore(db);

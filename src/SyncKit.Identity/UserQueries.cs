@@ -3,10 +3,8 @@ using SyncKit.Identity.Models;
 
 namespace SyncKit.Identity;
 
-public sealed class UserQueries(NpgsqlDataSource dataSource)
-{
-    public async Task<User?> GetAsync(Guid userId, CancellationToken ct)
-    {
+public sealed class UserQueries(NpgsqlDataSource dataSource) {
+    public async Task<User?> GetAsync(Guid userId, CancellationToken ct) {
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand(
             "SELECT user_id, discord_id, username, avatar, role, created_at, last_login_at FROM users WHERE user_id = $1",
@@ -17,8 +15,7 @@ public sealed class UserQueries(NpgsqlDataSource dataSource)
         return Read(reader);
     }
 
-    public async Task<IReadOnlyList<User>> ListAsync(CancellationToken ct)
-    {
+    public async Task<IReadOnlyList<User>> ListAsync(CancellationToken ct) {
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand(
             "SELECT user_id, discord_id, username, avatar, role, created_at, last_login_at FROM users ORDER BY created_at",
@@ -29,8 +26,7 @@ public sealed class UserQueries(NpgsqlDataSource dataSource)
         return results;
     }
 
-    public async Task<bool> SetRoleAsync(Guid userId, UserRole role, CancellationToken ct)
-    {
+    public async Task<bool> SetRoleAsync(Guid userId, UserRole role, CancellationToken ct) {
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand("UPDATE users SET role = $2 WHERE user_id = $1", conn);
         cmd.Parameters.AddWithValue(userId);
@@ -39,8 +35,7 @@ public sealed class UserQueries(NpgsqlDataSource dataSource)
         return affected > 0;
     }
 
-    private static User Read(NpgsqlDataReader reader) => new()
-    {
+    private static User Read(NpgsqlDataReader reader) => new() {
         UserId = reader.GetGuid(0),
         DiscordId = reader.IsDBNull(1) ? null : reader.GetString(1),
         Username = reader.GetString(2),

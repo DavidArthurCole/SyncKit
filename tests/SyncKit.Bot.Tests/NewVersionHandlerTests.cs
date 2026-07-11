@@ -6,10 +6,8 @@ using Xunit;
 
 namespace SyncKit.Bot.Tests;
 
-public class NewVersionHandlerTests
-{
-    private static DefaultHttpContext CtxWith(string auth, string body)
-    {
+public class NewVersionHandlerTests {
+    private static DefaultHttpContext CtxWith(string auth, string body) {
         var ctx = new DefaultHttpContext();
         ctx.Request.Headers.Authorization = auth;
         ctx.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(body));
@@ -18,8 +16,7 @@ public class NewVersionHandlerTests
     }
 
     [Fact]
-    public async Task WrongSecret_401_HandlerNotCalled()
-    {
+    public async Task WrongSecret_401_HandlerNotCalled() {
         var called = false;
         var h = NewVersionHandler.Build("right", _ => { called = true; return Task.CompletedTask; });
         var ctx = CtxWith("Bearer wrong", "{}");
@@ -29,8 +26,7 @@ public class NewVersionHandlerTests
     }
 
     [Fact]
-    public async Task EmptySecret_AlwaysUnauthorized()
-    {
+    public async Task EmptySecret_AlwaysUnauthorized() {
         var h = NewVersionHandler.Build("", _ => Task.CompletedTask);
         var ctx = CtxWith("Bearer anything", "{}");
         await h(ctx);
@@ -38,8 +34,7 @@ public class NewVersionHandlerTests
     }
 
     [Fact]
-    public async Task GoodSecret_DecodesAndCallsHandler()
-    {
+    public async Task GoodSecret_DecodesAndCallsHandler() {
         NewVersionEvent? got = null;
         var h = NewVersionHandler.Build("s3cr3t", e => { got = e; return Task.CompletedTask; });
         var ctx = CtxWith("Bearer s3cr3t",

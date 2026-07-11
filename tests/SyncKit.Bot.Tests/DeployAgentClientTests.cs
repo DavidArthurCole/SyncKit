@@ -3,11 +3,9 @@ using Xunit;
 
 namespace SyncKit.Bot.Tests;
 
-public class DeployAgentClientTests
-{
+public class DeployAgentClientTests {
     [Fact]
-    public void Parse_ReadsFrozenWire()
-    {
+    public void Parse_ReadsFrozenWire() {
         var r = DeployAgentClient.Parse(
             "{\"ok\":true,\"alreadyUpToDate\":true,\"fromHash\":\"abc1234\",\"toHash\":\"abc1234\"}");
         Assert.True(r.Ok);
@@ -17,8 +15,7 @@ public class DeployAgentClientTests
     }
 
     [Fact]
-    public void Parse_BadJson_ReturnsTail()
-    {
+    public void Parse_BadJson_ReturnsTail() {
         var r = DeployAgentClient.Parse("not json");
         Assert.False(r.Ok);
         Assert.Equal("could not decode deploy agent response", r.Tail);

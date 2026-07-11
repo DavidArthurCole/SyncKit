@@ -5,18 +5,15 @@ using Xunit;
 
 namespace SyncKit.Bot.Tests;
 
-public class EmbedsTests
-{
-    private static BotConfig Cfg() => new()
-    {
+public class EmbedsTests {
+    private static BotConfig Cfg() => new() {
         Name = "EggLedger",
         RepoUrl = "https://github.com/x/y",
         Build = new VerifyInfo { Sha256 = "deadbeef", Version = "v1.0.0", Date = "2026-06-14" },
     };
 
     [Fact]
-    public void AlreadyUpToDate_BlurpleTitleAndColor()
-    {
+    public void AlreadyUpToDate_BlurpleTitleAndColor() {
         var e = DefaultEmbeds.AlreadyUpToDate(Cfg(), "abc1234");
         Assert.Equal("Already up to date.", e.Title);
         Assert.Equal(0x5865F2u, e.Color!.Value.RawValue);
@@ -24,8 +21,7 @@ public class EmbedsTests
     }
 
     [Fact]
-    public void Success_GreenFromTo()
-    {
+    public void Success_GreenFromTo() {
         var e = DefaultEmbeds.Success(Cfg(), "aaa1111", "bbb2222");
         Assert.Equal("Updated", e.Title);
         Assert.Equal(0x57F287u, e.Color!.Value.RawValue);
@@ -34,8 +30,7 @@ public class EmbedsTests
     }
 
     [Fact]
-    public void Failure_RedWithTail()
-    {
+    public void Failure_RedWithTail() {
         var e = DefaultEmbeds.Failure("boom log");
         Assert.Equal("Update failed.", e.Title);
         Assert.Equal(0xED4245u, e.Color!.Value.RawValue);
@@ -43,8 +38,7 @@ public class EmbedsTests
     }
 
     [Fact]
-    public void Verify_BlurpleWithBuildFields()
-    {
+    public void Verify_BlurpleWithBuildFields() {
         var e = DefaultEmbeds.Verify(Cfg());
         Assert.Equal("EggLedger Sync Server", e.Title);
         Assert.Equal(0x5865F2u, e.Color!.Value.RawValue);
@@ -54,10 +48,8 @@ public class EmbedsTests
     }
 
     [Fact]
-    public void Dashboard_RendersCoreFields()
-    {
-        var snapshot = new DashboardSnapshot
-        {
+    public void Dashboard_RendersCoreFields() {
+        var snapshot = new DashboardSnapshot {
             AppName = "EggLedger",
             Version = "v1.2.3",
             BuildHash = "abc1234",
@@ -77,8 +69,7 @@ public class EmbedsTests
     }
 
     [Fact]
-    public void Dashboard_MissingOptionalFields_OmitsThem()
-    {
+    public void Dashboard_MissingOptionalFields_OmitsThem() {
         var snapshot = new DashboardSnapshot { AppName = "EggLedger", UptimeSince = DateTimeOffset.UtcNow };
 
         var e = DefaultEmbeds.Dashboard(snapshot);
@@ -89,8 +80,7 @@ public class EmbedsTests
     }
 
     [Fact]
-    public void EmbedOptions_Apply_NoOverrides_ReturnsEquivalentEmbed()
-    {
+    public void EmbedOptions_Apply_NoOverrides_ReturnsEquivalentEmbed() {
         var original = DefaultEmbeds.Verify(Cfg());
         var applied = new EmbedOptions().Apply(original);
 
@@ -100,8 +90,7 @@ public class EmbedsTests
     }
 
     [Fact]
-    public void EmbedOptions_Apply_OverridesColorAndTitle()
-    {
+    public void EmbedOptions_Apply_OverridesColorAndTitle() {
         var original = DefaultEmbeds.Verify(Cfg());
         var applied = new EmbedOptions { Color = 0x00FF00, Title = "Custom Title" }.Apply(original);
 
@@ -110,11 +99,9 @@ public class EmbedsTests
     }
 
     [Fact]
-    public void EmbedOptions_Apply_AppendsExtraFieldsAfterDefaults_InOrder()
-    {
+    public void EmbedOptions_Apply_AppendsExtraFieldsAfterDefaults_InOrder() {
         var original = DefaultEmbeds.Verify(Cfg());
-        var options = new EmbedOptions
-        {
+        var options = new EmbedOptions {
             ExtraFields = new[] { ("Region", "us-east", true), ("Tier", "pro", true) },
         };
         var applied = options.Apply(original);

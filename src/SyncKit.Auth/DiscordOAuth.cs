@@ -7,8 +7,7 @@ namespace SyncKit.Auth;
 public sealed record DiscordUser(string Id, string Username, string AvatarUrl);
 
 // Ports Go auth/discord.go. Discord OAuth2 authorization-code flow, identify scope.
-public static class DiscordOAuth
-{
+public static class DiscordOAuth {
     private const string AuthorizeUrl = "https://discord.com/api/oauth2/authorize";
     private const string TokenUrl = "https://discord.com/api/oauth2/token";
     private const string MeUrl = "https://discord.com/api/users/@me";
@@ -18,18 +17,15 @@ public static class DiscordOAuth
     private static string _redirectUrl = "";
     private static readonly HttpClient Http = new();
 
-    public static void Init(string clientId, string clientSecret, string redirectUrl)
-    {
+    public static void Init(string clientId, string clientSecret, string redirectUrl) {
         _clientId = clientId;
         _clientSecret = clientSecret;
         _redirectUrl = redirectUrl;
     }
 
-    public static (string Url, string State) AuthUrl()
-    {
+    public static (string Url, string State) AuthUrl() {
         var state = RandomHex(16);
-        var query = new Dictionary<string, string>
-        {
+        var query = new Dictionary<string, string> {
             ["client_id"] = _clientId,
             ["redirect_uri"] = _redirectUrl,
             ["response_type"] = "code",
@@ -46,10 +42,8 @@ public static class DiscordOAuth
     public static async Task HandleCallbackAsync(
         string code, string state,
         Func<string, string, DiscordUser, Task> storePending,
-        CancellationToken ct = default)
-    {
-        var tokenResp = await Http.PostAsync(TokenUrl, new FormUrlEncodedContent(new Dictionary<string, string>
-        {
+        CancellationToken ct = default) {
+        var tokenResp = await Http.PostAsync(TokenUrl, new FormUrlEncodedContent(new Dictionary<string, string> {
             ["client_id"] = _clientId,
             ["client_secret"] = _clientSecret,
             ["grant_type"] = "authorization_code",
@@ -86,8 +80,7 @@ public static class DiscordOAuth
     public static string GenerateEncryptionKey() => RandomHex(32);
 
     // Go randomHex(n): n random bytes -> 2n lowercase hex chars.
-    public static string RandomHex(int n)
-    {
+    public static string RandomHex(int n) {
         var b = RandomNumberGenerator.GetBytes(n);
         return Convert.ToHexStringLower(b);
     }

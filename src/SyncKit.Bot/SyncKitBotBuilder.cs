@@ -1,6 +1,7 @@
 using Discord;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Logging;
+using SyncKit.Auth;
 using SyncKit.Config;
 using SyncKit.Contract;
 using SyncKit.Db;
@@ -8,15 +9,14 @@ using SyncKit.Db;
 namespace SyncKit.Bot;
 
 // Barebones-bot-flavored-by-config entry point
-public sealed class SyncKitBotBuilder
-{
+public sealed class SyncKitBotBuilder {
     private string _configFilePath = "/etc/synckit/config.env";
     private Func<string, string?> _envFallback = Environment.GetEnvironmentVariable;
     private string _name = "";
     private VerifyInfo _build = new();
     private bool _globalCommands;
     private bool _guildCommandMirror;
-    private readonly List<BotCommand> _commands = new();
+    private readonly List<BotCommand> _commands = [];
     private EmbedOptions? _verifyOptions, _successOptions, _failureOptions, _alreadyUpToDateOptions;
     private Func<BotConfig, Embed>? _verifyBuilder;
     private Func<BotConfig, string, Embed>? _alreadyUpToDateBuilder;
@@ -26,6 +26,9 @@ public sealed class SyncKitBotBuilder
     private string? _dbMigrationsDir;
     private Func<NewVersionEvent, Task>? _newVersionHandler;
     private string _eventSecret = "";
+    private string? _adminClientId;
+    private string? _adminClientSecret;
+    private string? _adminCallbackUrl;
 
     public SyncKitBotBuilder WithConfigFile(string path) { _configFilePath = path; return this; }
     // Test-only escape hatch so unit tests don't depend on real process env vars.
@@ -46,11 +49,16 @@ public sealed class SyncKitBotBuilder
     public SyncKitBotBuilder WithDb(string connStr, string migrationsDir) { _dbConnStr = connStr; _dbMigrationsDir = migrationsDir; return this; }
     public SyncKitBotBuilder WithNewVersionHandler(Func<NewVersionEvent, Task> handler, string eventSecret) { _newVersionHandler = handler; _eventSecret = eventSecret; return this; }
 
-    public BotConfig BuildConfig()
-    {
+    public SyncKitBotBuilder WithAdminUi(string clientId, string clientSecret, string callbackUrl) {
+        _adminClientId = clientId;
+        _adminClientSecret = clientSecret;
+        _adminCallbackUrl = callbackUrl;
+        return this;
+    }
+
+    public BotConfig BuildConfig() {
         var values = BotConfigLoader.Load(_configFilePath, _envFallback);
-        return new BotConfig
-        {
+        return new BotConfig {
             Name = _name,
             Token = values.Token ?? "",
             AppId = values.AppId ?? "",
@@ -99,26 +107,39 @@ public sealed class SyncKitBotBuilder
         : cfg.FailureEmbedOptions is not null ? cfg.FailureEmbedOptions.Apply(DefaultEmbeds.Failure(tail))
         : DefaultEmbeds.Failure(tail);
 
-    public async Task RunAsync(Action<WebApplication>? configureRoutes = null)
-    {
+    public async Task RunAsync(Action<WebApplication>? configureRoutes = null) {
         var cfg = BuildConfig();
         var webBuilder = WebApplication.CreateBuilder();
         var app = webBuilder.Build();
 
         Npgsql.NpgsqlConnection? conn = null;
-        if (!string.IsNullOrEmpty(_dbConnStr))
-        {
+        if (!string.IsNullOrEmpty(_dbConnStr)) {
             conn = await Database.InitAsync(_dbConnStr);
             if (!string.IsNullOrEmpty(_dbMigrationsDir))
                 await Migrator.MigrateAsync(conn, _dbMigrationsDir);
         }
 
         SyncKitBot? bot = null;
-        try { bot = await SyncKitBot.StartAsync(cfg, this); }
-        catch (Exception ex) { app.Logger.LogWarning(ex, "synckit: bot start failed, continuing"); }
+        try { bot = await SyncKitBot.StartAsync(cfg, this); } catch (Exception ex) { app.Logger.LogWarning(ex, "synckit: bot start failed, continuing"); }
 
         if (_newVersionHandler is not null)
             app.MapPost("/events/new-version", NewVersionHandler.Build(_eventSecret, _newVersionHandler));
+
+        var values = BotConfigLoader.Load(_configFilePath, _envFallback);
+        var adminClientId = _adminClientId ?? values.DiscordAdminClientId;
+        var adminClientSecret = _adminClientSecret ?? values.DiscordAdminClientSecret;
+        var adminCallbackUrl = _adminCallbackUrl ?? values.AdminCallbackUrl;
+        if (!string.IsNullOrEmpty(adminClientId) && !string.IsNullOrEmpty(adminClientSecret) &&
+            !string.IsNullOrEmpty(adminCallbackUrl) && !string.IsNullOrEmpty(cfg.PostgresConnectionString) &&
+            bot is not null) {
+            DiscordOAuth.Init(adminClientId, adminClientSecret, adminCallbackUrl);
+            var adminDataSource = Npgsql.NpgsqlDataSource.Create(cfg.PostgresConnectionString);
+            await using (var adminConn = await adminDataSource.OpenConnectionAsync())
+                await Migrator.MigrateAsync(adminConn, Path.Combine(AppContext.BaseDirectory, "Migrations"));
+            var configStore = new ChannelConfigStore(adminDataSource);
+            var sessionStore = new AdminSessionStore(adminDataSource);
+            AdminRoutes.Map(app, cfg, configStore, sessionStore, bot.Client);
+        }
 
         configureRoutes?.Invoke(app);
 
@@ -127,9 +148,7 @@ public sealed class SyncKitBotBuilder
         var urls = addr.StartsWith(':') ? $"http://0.0.0.0{addr}" : $"http://{addr}";
 
         app.Logger.LogInformation("synckit: {Name} listening on {Addr}", cfg.Name, addr);
-        try { await app.RunAsync(urls); }
-        finally
-        {
+        try { await app.RunAsync(urls); } finally {
             if (bot is not null) await bot.DisposeAsync();
             if (conn is not null) await conn.DisposeAsync();
         }

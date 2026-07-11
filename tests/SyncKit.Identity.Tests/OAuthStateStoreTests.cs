@@ -5,12 +5,10 @@ using Xunit;
 
 namespace SyncKit.Identity.Tests;
 
-public class OAuthStateStoreTests
-{
+public class OAuthStateStoreTests {
     private static string? ConnString => Environment.GetEnvironmentVariable("SYNCKIT_TEST_PG_CONN");
 
-    private static async Task<NpgsqlDataSource> MakeDbAsync()
-    {
+    private static async Task<NpgsqlDataSource> MakeDbAsync() {
         var dataSource = NpgsqlDataSource.Create(ConnString!);
         await using var conn = await dataSource.OpenConnectionAsync();
         await Migrator.MigrateAsync(conn, Path.Combine(AppContext.BaseDirectory, "Migrations"));
@@ -18,8 +16,7 @@ public class OAuthStateStoreTests
     }
 
     [Fact]
-    public async Task SaveAsync_ThenConsumeAsync_ReturnsState()
-    {
+    public async Task SaveAsync_ThenConsumeAsync_ReturnsState() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var store = new OAuthStateStore(db);
@@ -33,8 +30,7 @@ public class OAuthStateStoreTests
     }
 
     [Fact]
-    public async Task ConsumeAsync_SecondAttempt_ReturnsNull()
-    {
+    public async Task ConsumeAsync_SecondAttempt_ReturnsNull() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var store = new OAuthStateStore(db);
@@ -47,8 +43,7 @@ public class OAuthStateStoreTests
     }
 
     [Fact]
-    public async Task ConsumeAsync_UnknownState_ReturnsNull()
-    {
+    public async Task ConsumeAsync_UnknownState_ReturnsNull() {
         if (string.IsNullOrEmpty(ConnString)) return;
         await using var db = await MakeDbAsync();
         var store = new OAuthStateStore(db);

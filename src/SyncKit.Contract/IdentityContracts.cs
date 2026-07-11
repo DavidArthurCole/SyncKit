@@ -6,8 +6,7 @@ namespace SyncKit.Contract;
 // through it, by EggIncognito/EggLedger. Kept separate from the DB-facing models in
 // SyncKit.Identity so the wire contract can stay frozen independent of internal schema changes.
 
-public sealed class IdentityResolveRequest
-{
+public sealed class IdentityResolveRequest {
     [JsonPropertyName("provider")]
     public string Provider { get; set; } = "";
 
@@ -24,8 +23,7 @@ public sealed class IdentityResolveRequest
     public string? Avatar { get; set; }
 }
 
-public sealed class IdentityResolveResponse
-{
+public sealed class IdentityResolveResponse {
     [JsonPropertyName("userId")]
     public Guid UserId { get; set; }
 
@@ -39,8 +37,7 @@ public sealed class IdentityResolveResponse
     public bool IsNew { get; set; }
 }
 
-public sealed class IdentityUserResponse
-{
+public sealed class IdentityUserResponse {
     [JsonPropertyName("userId")]
     public Guid UserId { get; set; }
 
@@ -63,14 +60,12 @@ public sealed class IdentityUserResponse
     public DateTimeOffset LastLoginAt { get; set; }
 }
 
-public sealed class RevokeSessionRequest
-{
+public sealed class RevokeSessionRequest {
     [JsonPropertyName("sid")]
     public string Sid { get; set; } = "";
 }
 
-public sealed class MergeUsersRequest
-{
+public sealed class MergeUsersRequest {
     [JsonPropertyName("keepUserId")]
     public Guid KeepUserId { get; set; }
 
@@ -78,20 +73,17 @@ public sealed class MergeUsersRequest
     public Guid MergeUserId { get; set; }
 }
 
-public sealed class SetRoleRequest
-{
+public sealed class SetRoleRequest {
     [JsonPropertyName("role")]
     public string Role { get; set; } = "";
 }
 
-public sealed class RedeemLoginCodeRequest
-{
+public sealed class RedeemLoginCodeRequest {
     [JsonPropertyName("code")]
     public string Code { get; set; } = "";
 }
 
-public sealed class RedeemLoginCodeResponse
-{
+public sealed class RedeemLoginCodeResponse {
     [JsonPropertyName("userId")]
     public Guid UserId { get; set; }
 
