@@ -23,16 +23,28 @@ public sealed class Watcher(string name, TimeSpan interval, Func<string> resolve
     }
 
     internal void Tick() {
+        Console.WriteLine("watcher: tick: checking for updates");
         var (res, ran) = tryRun();
-        if (!ran) return; // a manual deploy holds the lock; skip this tick
+        if (!ran) {
+            Console.WriteLine("watcher: tick: skipped, deploy already in progress");
+            return;
+        }
+        Console.WriteLine($"watcher: tick: result ok={res.Ok} alreadyUpToDate={res.AlreadyUpToDate} from={res.FromHash} to={res.ToHash}");
         var payload = Decide(res);
-        if (payload is null) return;
+        if (payload is null) {
+            Console.WriteLine("watcher: tick: no notification needed");
+            return;
+        }
         var webhookUrl = resolveWebhookUrl();
-        if (string.IsNullOrEmpty(webhookUrl)) return;
+        if (string.IsNullOrEmpty(webhookUrl)) {
+            Console.WriteLine("watcher: tick: notification needed but no webhook URL resolved, staying silent");
+            return;
+        }
         try {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
             using var content = new StringContent(payload, Encoding.UTF8, "application/json");
-            http.PostAsync(webhookUrl, content).GetAwaiter().GetResult();
+            var resp = http.PostAsync(webhookUrl, content).GetAwaiter().GetResult();
+            Console.WriteLine($"watcher: tick: notified webhook -> {(int)resp.StatusCode}");
         } catch (Exception e) { Console.Error.WriteLine($"watcher: notify: {e.Message}"); }
     }
 

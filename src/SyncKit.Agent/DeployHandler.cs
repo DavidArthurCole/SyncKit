@@ -11,7 +11,10 @@ public sealed class DeployHandler(Func<DeployResponse> run) {
 
     public (DeployResponse Result, bool Ran) TryRun() {
         lock (_gate) {
-            if (_inProgress) return (new DeployResponse(), false);
+            if (_inProgress) {
+                Console.WriteLine("deploy: skipped, another deploy is already in progress");
+                return (new DeployResponse(), false);
+            }
             _inProgress = true;
         }
         try { return (run(), true); } finally {

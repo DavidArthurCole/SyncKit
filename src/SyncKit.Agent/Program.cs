@@ -70,8 +70,10 @@ return 0;
 static Func<string> BuildWebhookResolver(WatchConfig watch) {
     var dbConn = Environment.GetEnvironmentVariable("IDENTITY_DB_CONNECTION");
 
-    if (watch.NotifyChannelGuildId == "" || watch.NotifyChannelAppName == "" || string.IsNullOrEmpty(dbConn))
+    if (watch.NotifyChannelGuildId == "" || watch.NotifyChannelAppName == "" || string.IsNullOrEmpty(dbConn)) {
+        Console.WriteLine("synckit-agent: watch notify disabled: guild/app/IDENTITY_DB_CONNECTION not configured");
         return () => "";
+    }
 
     var store = new ChannelStateStore(NpgsqlDataSource.Create(dbConn));
     return () => {
@@ -80,7 +82,10 @@ static Func<string> BuildWebhookResolver(WatchConfig watch) {
                 "thread:DeployNotifications:webhook", CancellationToken.None).GetAwaiter().GetResult();
             var thread = store.GetAsync(watch.NotifyChannelGuildId, watch.NotifyChannelAppName,
                 "thread:DeployNotifications", CancellationToken.None).GetAwaiter().GetResult();
-            if (webhook is null || thread is null) return "";
+            if (webhook is null || thread is null) {
+                Console.WriteLine("synckit-agent: resolve deploy webhook: no ChannelHub thread/webhook stored yet");
+                return "";
+            }
             return $"https://discord.com/api/webhooks/{webhook.DiscordId}/{webhook.WebhookToken}?thread_id={thread.DiscordId}";
         } catch (Exception e) {
             Console.Error.WriteLine($"synckit-agent: resolve deploy webhook: {e.Message}");

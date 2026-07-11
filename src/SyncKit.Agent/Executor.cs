@@ -18,10 +18,15 @@ public sealed class Executor {
             // Once a pull step finds nothing new, skip the rest of the pipeline except steps that
             // opted into running anyway (e.g. a shell step redeploying something the pull doesn't
             // gate, like a sibling binary built from the same repo).
-            if (c.ShortCircuit && !step.RunOnShortCircuit) continue;
+            if (c.ShortCircuit && !step.RunOnShortCircuit) {
+                Console.WriteLine($"deploy: {step.GetType().Name}: skipped (short-circuit)");
+                continue;
+            }
 
+            Console.WriteLine($"deploy: {step.GetType().Name}: running");
             var err = step.Exec(c);
             if (err is not null) {
+                Console.WriteLine($"deploy: {step.GetType().Name}: failed: {err}");
                 // The error message is often the only signal, so it must survive the tail cut.
                 c.Out.Append('\n').Append(err).Append('\n');
                 return new DeployResponse {
@@ -32,7 +37,9 @@ public sealed class Executor {
                     Tail = TailLines(c.Out.ToString(), 20),
                 };
             }
+            Console.WriteLine($"deploy: {step.GetType().Name}: ok" + (c.ShortCircuit ? " (short-circuit set)" : ""));
         }
+        Console.WriteLine($"deploy: done: ok=true alreadyUpToDate={c.ShortCircuit} from={c.FromHash} to={c.ToHash}");
         return new DeployResponse {
             Ok = true,
             AlreadyUpToDate = c.ShortCircuit,
