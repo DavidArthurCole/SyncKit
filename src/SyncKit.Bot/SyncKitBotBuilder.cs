@@ -120,7 +120,16 @@ public sealed class SyncKitBotBuilder {
         }
 
         SyncKitBot? bot = null;
-        try { bot = await SyncKitBot.StartAsync(cfg, this); } catch (Exception ex) { app.Logger.LogWarning(ex, "synckit: bot start failed, continuing"); }
+        try {
+            bot = await SyncKitBot.StartAsync(cfg, this);
+        } catch (Discord.WebSocket.GatewayReconnectException ex) {
+            app.Logger.LogWarning(ex,
+                "synckit: bot start failed - gateway rejected the connection, likely because the " +
+                "GuildMembers privileged intent isn't enabled for this bot application. Enable " +
+                "\"Server Members Intent\" in the Discord Developer Portal (Bot tab), continuing without bot");
+        } catch (Exception ex) {
+            app.Logger.LogWarning(ex, "synckit: bot start failed, continuing");
+        }
 
         if (_newVersionHandler is not null)
             app.MapPost("/events/new-version", NewVersionHandler.Build(_eventSecret, _newVersionHandler));

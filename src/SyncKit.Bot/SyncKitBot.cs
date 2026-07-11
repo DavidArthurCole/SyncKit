@@ -9,6 +9,12 @@ namespace SyncKit.Bot;
 // Ports Go bot.Start + registerCommands + handleInteraction + ensureSharedRole.
 // Built-ins: /verify (public), /updateserver (Administrator-gated). Extra commands whose
 // names collide with built-ins are dropped. Guild-scoped registration.
+//
+// Requests the GuildMembers gateway intent to populate the member cache (needed by
+// AdminRoutes.IsGuildAdmin). GuildMembers is privileged: the bot application must have
+// "Server Members Intent" enabled in the Discord Developer Portal (Bot tab), or
+// client.StartAsync fails to connect - the portal toggle is required in addition to the
+// code-side intent flag below, and is outside this repo's control.
 public sealed class SyncKitBot : IAsyncDisposable {
     public static readonly string[] BuiltinCommandNames = ["verify", "updateserver"];
 
@@ -44,7 +50,7 @@ public sealed class SyncKitBot : IAsyncDisposable {
             return null;
 
         var client = new DiscordSocketClient(new DiscordSocketConfig {
-            GatewayIntents = GatewayIntents.Guilds,
+            GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildMembers,
         });
         var bot = new SyncKitBot(cfg, client, builder);
 
@@ -76,8 +82,20 @@ public sealed class SyncKitBot : IAsyncDisposable {
 
     private async Task OnReadyAsync() {
         try { await RegisterCommandsAsync(); } catch (Exception ex) { Console.Error.WriteLine($"bot: register commands: {ex.Message}"); }
+        try { await DownloadGuildMembersAsync(); } catch (Exception ex) { Console.Error.WriteLine($"bot: download guild members: {ex.Message}"); }
         try { await EnsureSharedRoleAsync(); } catch (Exception ex) { Console.Error.WriteLine($"bot: shared-role: {ex.Message}"); }
         try { await InitChannelHubAsync(); } catch (Exception ex) { Console.Error.WriteLine($"bot: channel hub: {ex.Message}"); }
+    }
+
+    // Requires GuildMembers intent (privileged - must be enabled in the Developer Portal under
+    // Bot -> Privileged Gateway Intents -> Server Members Intent) or the gateway rejects the
+    // connection. Populates the local member cache that IsGuildAdmin's guild.GetUser reads.
+    private async Task DownloadGuildMembersAsync() {
+        if (string.IsNullOrEmpty(_cfg.GuildId)) return;
+        if (!TryParseSnowflake(_cfg.GuildId, "guild id", out var guildId)) return;
+        var guild = Client.GetGuild(guildId);
+        if (guild is null) return;
+        await guild.DownloadUsersAsync();
     }
 
     // Additive/config-gated: DashboardChannelId unset (env or bot_channel_config override) means
