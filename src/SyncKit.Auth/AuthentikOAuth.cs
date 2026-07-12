@@ -40,7 +40,9 @@ public static class AuthentikOAuth {
         };
         var qs = string.Join("&", query.Select(kv =>
             $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value).Replace("%2B", "+")}"));
-        return ($"{_authority}/if/flow/default-authentication-flow/?{qs}", state, verifier);
+        // Authentik picks the flow to run from the provider's own Authentication Flow setting,
+        // not a hardcoded slug here - keeps this in sync with whatever flow the provider is set to.
+        return ($"{_authority}/application/o/authorize/?{qs}", state, verifier);
     }
 
     public static async Task<AuthentikTokenResult> HandleCallbackAsync(string code, string codeVerifier, CancellationToken ct = default) {
