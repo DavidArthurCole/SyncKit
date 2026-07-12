@@ -97,14 +97,30 @@ public static class AuthentikAspNetAuth {
     }
 
     // Shared cookie OnValidatePrincipal hook: rejects and signs out a principal whose sid claim
-    // is revoked, so Authentik back-channel logout takes effect immediately instead of waiting
-    // for cookie expiry. No-op when the principal has no sid claim (e.g. a Discord-only login).
-    public static async Task OnValidatePrincipalCheckRevoked(CookieValidatePrincipalContext ctx, IdentityApiClient identity) {
+    // is revoked (Authentik back-channel logout), and refreshes the role claim from SyncKit's
+    // live users.role column so a role change takes effect on the next request instead of next login.
+    public static async Task OnValidatePrincipalCheckRevoked(
+        CookieValidatePrincipalContext ctx, IdentityApiClient identity, string userIdClaimType, string roleClaimType) {
         var sid = ctx.Principal?.FindFirstValue("sid");
-        if (string.IsNullOrEmpty(sid)) return;
-        if (await identity.IsRevokedAsync(sid, ctx.HttpContext.RequestAborted)) {
+        if (!string.IsNullOrEmpty(sid) && await identity.IsRevokedAsync(sid, ctx.HttpContext.RequestAborted)) {
             ctx.RejectPrincipal();
             await ctx.HttpContext.SignOutAsync(ctx.Scheme.Name);
+            return;
         }
+
+        var userIdClaim = ctx.Principal?.FindFirstValue(userIdClaimType);
+        if (userIdClaim is null || !Guid.TryParse(userIdClaim, out var userId)) return;
+
+        var user = await identity.GetAsync(userId, ctx.HttpContext.RequestAborted);
+        if (user is null) return;
+
+        var currentRole = ctx.Principal!.FindFirstValue(roleClaimType);
+        if (currentRole == user.Role) return;
+
+        var claimsIdentity = (ClaimsIdentity)ctx.Principal!.Identity!;
+        var existing = claimsIdentity.FindFirst(roleClaimType);
+        if (existing is not null) claimsIdentity.RemoveClaim(existing);
+        claimsIdentity.AddClaim(new Claim(roleClaimType, user.Role));
+        ctx.ShouldRenew = true;
     }
 }
