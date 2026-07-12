@@ -62,10 +62,14 @@ public sealed class Executor {
             foreach (var a in args) psi.ArgumentList.Add(a);
             using var p = Process.Start(psi);
             if (p is null) return ($"failed to start {name}", false);
-            var stdout = p.StandardOutput.ReadToEnd();
-            var stderr = p.StandardError.ReadToEnd();
+            // Must read both streams concurrently: docker pull writes enough progress output to
+            // fill the stdout pipe buffer, and reading stdout/stderr sequentially deadlocks
+            // once the child blocks writing the un-drained stream.
+            var stdoutTask = p.StandardOutput.ReadToEndAsync();
+            var stderrTask = p.StandardError.ReadToEndAsync();
+            Task.WaitAll(stdoutTask, stderrTask);
             p.WaitForExit();
-            return (stdout + stderr, p.ExitCode == 0);
+            return (stdoutTask.Result + stderrTask.Result, p.ExitCode == 0);
         } catch (Exception e) { return ($"{name}: {e.Message}", false); }
     }
 
