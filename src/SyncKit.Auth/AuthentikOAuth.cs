@@ -44,7 +44,7 @@ public static class AuthentikOAuth {
     }
 
     public static async Task<AuthentikTokenResult> HandleCallbackAsync(string code, string codeVerifier, CancellationToken ct = default) {
-        var tokenResp = await Http.PostAsync($"{_authority}/token/", new FormUrlEncodedContent(new Dictionary<string, string> {
+        var tokenResp = await Http.PostAsync($"{_authority}/application/o/token/", new FormUrlEncodedContent(new Dictionary<string, string> {
             ["client_id"] = _clientId,
             ["client_secret"] = _clientSecret,
             ["grant_type"] = "authorization_code",
@@ -58,7 +58,7 @@ public static class AuthentikOAuth {
         if (string.IsNullOrEmpty(accessToken))
             throw new InvalidOperationException("Authentik token response missing access_token");
 
-        using var userInfoReq = new HttpRequestMessage(HttpMethod.Get, $"{_authority}/userinfo/");
+        using var userInfoReq = new HttpRequestMessage(HttpMethod.Get, $"{_authority}/application/o/userinfo/");
         userInfoReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
         var userInfoResp = await Http.SendAsync(userInfoReq, ct);
         userInfoResp.EnsureSuccessStatusCode();
