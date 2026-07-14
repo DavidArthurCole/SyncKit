@@ -71,8 +71,7 @@ loginRoutes.MapGet("/start", async (HttpContext ctx, OAuthStateStore states) => 
     var returnOrigin = ctx.Request.Query["returnOrigin"].ToString();
     if (string.IsNullOrEmpty(returnOrigin) || !allowedReturnOrigins.Contains(returnOrigin))
         return Results.BadRequest("returnOrigin not allowed");
-    var mode = ctx.Request.Query["mode"].ToString();
-    if (mode != "inline") mode = "popup";
+    var mode = Program.ValidateMode(ctx.Request.Query["mode"].ToString());
 
     var (url, state, verifier) = AuthentikOAuth.AuthUrl();
     await states.SaveAsync(state, verifier, returnOrigin, mode, ctx.RequestAborted);
@@ -86,7 +85,8 @@ loginRoutes.MapGet("/sources", async (HttpContext ctx, OAuthStateStore states, H
         return Results.BadRequest("returnOrigin not allowed");
 
     var (query, state, verifier) = AuthentikOAuth.BuildAuthParams();
-    await states.SaveAsync(state, verifier, returnOrigin, "popup", ctx.RequestAborted);
+    var mode = Program.ValidateMode(ctx.Request.Query["mode"].ToString());
+    await states.SaveAsync(state, verifier, returnOrigin, mode, ctx.RequestAborted);
 
     var flowUrl = $"{authentikAuthority!.TrimEnd('/')}/api/v3/flows/executor/federated-authentication-flow/?query={Uri.EscapeDataString(query)}";
     var flowResp = await http.GetAsync(flowUrl, ctx.RequestAborted);
@@ -117,6 +117,9 @@ loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, 
         var resolved = await resolver.ResolveAsync("authentik", token.Sub, token.DiscordId, token.Username, token.Avatar, ctx.RequestAborted);
         loginCode = await codes.IssueAsync(resolved.UserId, resolved.IsNew, ctx.RequestAborted);
     } catch (Exception) {
+        if (saved.Mode == "redirect")
+            return Results.Redirect(Program.BuildRedirectCallbackUrl(saved.ReturnOrigin, code: null, error: "login_failed"));
+
         var errorPayloadJson = System.Text.Json.JsonSerializer.Serialize(new { source = "synckit-auth", error = "login_failed" });
         var errorOriginJson = System.Text.Json.JsonSerializer.Serialize(saved.ReturnOrigin);
         var errorHtml = $"""
@@ -128,6 +131,9 @@ loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, 
             """;
         return Results.Content(errorHtml, "text/html");
     }
+
+    if (saved.Mode == "redirect")
+        return Results.Redirect(Program.BuildRedirectCallbackUrl(saved.ReturnOrigin, code: loginCode, error: null));
 
     var payloadJson = System.Text.Json.JsonSerializer.Serialize(new { source = "synckit-auth", code = loginCode });
     var originJson = System.Text.Json.JsonSerializer.Serialize(saved.ReturnOrigin);
@@ -269,6 +275,14 @@ static IdentityUserResponse ToResponse(User u) => new() {
 };
 
 public partial class Program {
+    public static string ValidateMode(string? raw) =>
+        raw is "inline" or "redirect" ? raw : "popup";
+
+    public static string BuildRedirectCallbackUrl(string returnOrigin, string? code, string? error) {
+        var param = code is not null ? $"code={Uri.EscapeDataString(code)}" : $"error={Uri.EscapeDataString(error!)}";
+        return $"{returnOrigin}/auth/callback?{param}";
+    }
+
     public static List<LoginSourceResponse> ParseLoginSources(JsonElement identificationStage) {
         var result = new List<LoginSourceResponse>();
         if (!identificationStage.TryGetProperty("sources", out var sourcesEl) || sourcesEl.ValueKind != JsonValueKind.Array)
