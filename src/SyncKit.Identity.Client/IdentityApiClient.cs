@@ -4,9 +4,8 @@ using SyncKit.Contract;
 namespace SyncKit.Identity.Client;
 
 // Server-to-server client for SyncKit.Identity.Host. Construct with an HttpClient whose
-// BaseAddress is the host's URL and whose default Authorization header is already set to
-// "Bearer {IDENTITY_API_SECRET}" (consumers wire this via AddHttpClient in their own DI setup,
-// same shape as EggIncognito.Bot's DeployAgentClient).
+// BaseAddress is the host's URL and whose default Authorization header is set to
+// "Bearer {IDENTITY_API_SECRET}".
 public sealed class IdentityApiClient(HttpClient http) {
     public async Task<IdentityResolveResponse> ResolveAsync(
         string provider, string subject, string? discordId, string? username, string? avatar, CancellationToken ct) {
@@ -56,6 +55,12 @@ public sealed class IdentityApiClient(HttpClient http) {
         var resp = await http.PostAsJsonAsync("/identity/redeem", new RedeemLoginCodeRequest { Code = code }, ct);
         resp.EnsureSuccessStatusCode();
         return (await resp.Content.ReadFromJsonAsync<RedeemLoginCodeResponse>(cancellationToken: ct))!;
+    }
+
+    public async Task<LoginSourcesResponse> GetLoginSourcesAsync(string returnOrigin, CancellationToken ct) {
+        var resp = await http.GetAsync($"/login/sources?returnOrigin={Uri.EscapeDataString(returnOrigin)}", ct);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<LoginSourcesResponse>(cancellationToken: ct))!;
     }
 
     private sealed record MergeResult(Guid UserId);

@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Text.Json;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
@@ -42,6 +43,7 @@ builder.Services.AddSingleton<RevocationStore>();
 builder.Services.AddSingleton<UserQueries>();
 builder.Services.AddSingleton<LoginCodeStore>();
 builder.Services.AddSingleton<OAuthStateStore>();
+builder.Services.AddHttpClient();
 
 // Backs /login/backchannel-logout's logout_token signature check: fetches and caches Authentik's
 // discovery doc/JWKS independently of AuthentikOAuth's own authorization-code exchange.
@@ -75,6 +77,27 @@ loginRoutes.MapGet("/start", async (HttpContext ctx, OAuthStateStore states) => 
     var (url, state, verifier) = AuthentikOAuth.AuthUrl();
     await states.SaveAsync(state, verifier, returnOrigin, mode, ctx.RequestAborted);
     return Results.Redirect(url);
+});
+
+loginRoutes.MapGet("/sources", async (HttpContext ctx, OAuthStateStore states, HttpClient http) => {
+    if (!loginWidgetEnabled) return Results.NotFound();
+    var returnOrigin = ctx.Request.Query["returnOrigin"].ToString();
+    if (string.IsNullOrEmpty(returnOrigin) || !allowedReturnOrigins.Contains(returnOrigin))
+        return Results.BadRequest("returnOrigin not allowed");
+
+    var (query, state, verifier) = AuthentikOAuth.BuildAuthParams();
+    await states.SaveAsync(state, verifier, returnOrigin, "popup", ctx.RequestAborted);
+
+    var flowUrl = $"{authentikAuthority!.TrimEnd('/')}/api/v3/flows/executor/federated-authentication-flow/?query={Uri.EscapeDataString(query)}";
+    var flowResp = await http.GetAsync(flowUrl, ctx.RequestAborted);
+    if (!flowResp.IsSuccessStatusCode) return Results.StatusCode(StatusCodes.Status502BadGateway);
+
+    using var flowDoc = JsonDocument.Parse(await flowResp.Content.ReadAsStringAsync(ctx.RequestAborted));
+    var component = flowDoc.RootElement.TryGetProperty("component", out var c) ? c.GetString() : null;
+    if (component != "ak-stage-identification") return Results.StatusCode(StatusCodes.Status502BadGateway);
+
+    var sources = Program.ParseLoginSources(flowDoc.RootElement);
+    return Results.Ok(new LoginSourcesResponse { Sources = sources });
 });
 
 loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, IdentityResolver resolver, LoginCodeStore codes) => {
@@ -244,3 +267,25 @@ static IdentityUserResponse ToResponse(User u) => new() {
     CreatedAt = u.CreatedAt,
     LastLoginAt = u.LastLoginAt,
 };
+
+public partial class Program {
+    public static List<LoginSourceResponse> ParseLoginSources(JsonElement identificationStage) {
+        var result = new List<LoginSourceResponse>();
+        if (!identificationStage.TryGetProperty("sources", out var sourcesEl) || sourcesEl.ValueKind != JsonValueKind.Array)
+            return result;
+
+        foreach (var source in sourcesEl.EnumerateArray()) {
+            if (!source.TryGetProperty("challenge", out var challenge) || challenge.ValueKind != JsonValueKind.Object) continue;
+            var component = challenge.TryGetProperty("component", out var c) ? c.GetString() : null;
+            if (component != "xak-flow-redirect") continue;
+            if (!challenge.TryGetProperty("to", out var toEl)) continue;
+
+            result.Add(new LoginSourceResponse {
+                Name = source.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
+                IconUrl = source.TryGetProperty("icon_url", out var i) && i.ValueKind != JsonValueKind.Null ? i.GetString() : null,
+                Url = toEl.GetString() ?? "",
+            });
+        }
+        return result;
+    }
+}

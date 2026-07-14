@@ -25,10 +25,8 @@ public sealed record AuthentikAspNetAuthOptions {
     public Func<IdentityResolveResponse, ClaimsIdentity, HttpContext, Task>? OnResolved { get; init; }
 }
 
-// Shared Authentik OIDC challenge-scheme wiring for EggIncognito and EggLedger. Both apps
-// previously hand-duplicated this AddOpenIdConnect setup; this is the single source now.
-// Not the same as AuthentikOAuth.cs (hand-rolled PKCE flow used only by Identity.Host's own
-// embedded-login-widget exchange, no ASP.NET auth scheme involved there).
+// Shared Authentik OIDC challenge-scheme wiring for EggIncognito and EggLedger. Distinct from
+// AuthentikOAuth.cs, the hand-rolled PKCE flow used only by Identity.Host's login widget.
 public static class AuthentikAspNetAuth {
     public static bool AddIfConfigured(AuthenticationBuilder builder, AuthentikAspNetAuthOptions? options) {
         if (options is null) return false;

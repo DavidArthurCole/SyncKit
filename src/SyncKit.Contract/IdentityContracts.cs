@@ -102,3 +102,19 @@ public sealed class RedeemLoginCodeResponse {
     [JsonPropertyName("isNew")]
     public bool IsNew { get; set; }
 }
+
+public sealed class LoginSourceResponse {
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("iconUrl")]
+    public string? IconUrl { get; set; }
+
+    [JsonPropertyName("url")]
+    public string Url { get; set; } = "";
+}
+
+public sealed class LoginSourcesResponse {
+    [JsonPropertyName("sources")]
+    public List<LoginSourceResponse> Sources { get; set; } = [];
+}

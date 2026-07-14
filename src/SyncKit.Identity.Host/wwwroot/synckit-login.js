@@ -1,12 +1,6 @@
 // src/SyncKit.Identity.Host/wwwroot/synckit-login.js
-// Embeddable login widget, popup or inline iframe. Usage:
-//   <script src="https://<identity-host>/synckit-login.js"></script>
-//   SyncKitAuth.login("https://<identity-host>").then(({ code }) => { ... });
-//   SyncKitAuth.loginInline("https://<identity-host>", containerEl).then(({ code }) => { ... });
-// loginInline injects an iframe filling containerEl - the caller owns containerEl's size,
-// position, and styling entirely; the widget never renders anything of its own outside it.
-// The returned code is a short-lived, single-use token - exchange it for a resolved identity
-// via a SERVER-SIDE call to POST /identity/redeem. Never send it anywhere else from page JS.
+// Embeddable login widget popup: SyncKitAuth.login("https://<identity-host>").then(({ code }) => { ... }).
+// The returned code is single-use; redeem it server-side via POST /identity/redeem, never from page JS.
 (function () {
   "use strict";
 
@@ -55,22 +49,5 @@
     });
   }
 
-  // containerEl: an element the caller has already sized/positioned/styled. Its entire content
-  // is replaced with the login iframe; the caller controls everything outside it.
-  function loginInline(identityHostUrl, containerEl) {
-    var returnOrigin = window.location.origin;
-    var startUrl = identityHostUrl.replace(/\/$/, "") + "/login/start?returnOrigin="
-      + encodeURIComponent(returnOrigin) + "&mode=inline";
-
-    var iframe = document.createElement("iframe");
-    iframe.src = startUrl;
-    iframe.style.width = "100%";
-    iframe.style.height = "100%";
-    iframe.style.border = "0";
-    containerEl.replaceChildren(iframe);
-
-    return waitForMessage(identityHostUrl, iframe.contentWindow);
-  }
-
-  window.SyncKitAuth = { login: login, loginInline: loginInline };
+  window.SyncKitAuth = { login: login };
 })();

@@ -24,7 +24,7 @@ public static class AuthentikOAuth {
         _redirectUrl = redirectUrl;
     }
 
-    public static (string Url, string State, string CodeVerifier) AuthUrl() {
+    public static (string Query, string State, string CodeVerifier) BuildAuthParams() {
         var state = DiscordOAuth.RandomHex(16);
         var verifier = GenerateCodeVerifier();
         var challenge = ComputeCodeChallenge(verifier);
@@ -40,6 +40,11 @@ public static class AuthentikOAuth {
         };
         var qs = string.Join("&", query.Select(kv =>
             $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value).Replace("%2B", "+")}"));
+        return (qs, state, verifier);
+    }
+
+    public static (string Url, string State, string CodeVerifier) AuthUrl() {
+        var (qs, state, verifier) = BuildAuthParams();
         // Authentik picks the flow to run from the provider's own Authentication Flow setting,
         // not a hardcoded slug here - keeps this in sync with whatever flow the provider is set to.
         return ($"{_authority}/application/o/authorize/?{qs}", state, verifier);

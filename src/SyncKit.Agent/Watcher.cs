@@ -6,7 +6,6 @@ namespace SyncKit.Agent;
 
 // Polls the deploy pipeline on an interval and posts Discord webhook embeds on change.
 // A failure posts red once per distinct tail, reset on any non-failure, so a broken pipeline doesn't spam every tick.
-// resolveWebhookUrl is called fresh each notifying tick (not cached) so it can pick up a rotated ChannelHub webhook without restarting the agent.
 public sealed class Watcher(string name, TimeSpan interval, Func<string> resolveWebhookUrl, Func<(DeployResponse, bool)> tryRun) {
     private string _lastFail = "";
 
@@ -65,7 +64,7 @@ public sealed class Watcher(string name, TimeSpan interval, Func<string> resolve
     // anywhere in the tail because docker/compose/pull errors nest the cause inside wrapper text.
     private static readonly string[] TransientMarkers = [
         "Cannot connect to the Docker daemon", // host stopped Docker
-        "context deadline exceeded", // GHCR/registry pull timed out (the spam we saw)
+        "context deadline exceeded", // GHCR/registry pull timed out
         "Client.Timeout exceeded", // Go http client timeout wrapper
         "TLS handshake timeout",
         "connection refused",
