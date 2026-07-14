@@ -96,7 +96,7 @@ loginRoutes.MapGet("/sources", async (HttpContext ctx, OAuthStateStore states, H
     var component = flowDoc.RootElement.TryGetProperty("component", out var c) ? c.GetString() : null;
     if (component != "ak-stage-identification") return Results.StatusCode(StatusCodes.Status502BadGateway);
 
-    var sources = Program.ParseLoginSources(flowDoc.RootElement);
+    var sources = Program.ParseLoginSources(flowDoc.RootElement, authentikAuthority!);
     return Results.Ok(new LoginSourcesResponse { Sources = sources });
 });
 
@@ -283,7 +283,7 @@ public partial class Program {
         return $"{returnOrigin}/auth/callback?{param}";
     }
 
-    public static List<LoginSourceResponse> ParseLoginSources(JsonElement identificationStage) {
+    public static List<LoginSourceResponse> ParseLoginSources(JsonElement identificationStage, string authority) {
         var result = new List<LoginSourceResponse>();
         if (!identificationStage.TryGetProperty("sources", out var sourcesEl) || sourcesEl.ValueKind != JsonValueKind.Array)
             return result;
@@ -296,10 +296,14 @@ public partial class Program {
 
             result.Add(new LoginSourceResponse {
                 Name = source.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
-                IconUrl = source.TryGetProperty("icon_url", out var i) && i.ValueKind != JsonValueKind.Null ? i.GetString() : null,
-                Url = toEl.GetString() ?? "",
+                IconUrl = Absolutize(authority, source.TryGetProperty("icon_url", out var i) && i.ValueKind != JsonValueKind.Null ? i.GetString() : null),
+                Url = Absolutize(authority, toEl.GetString()) ?? "",
             });
         }
         return result;
     }
+
+    // Authentik returns challenge.to and icon_url relative to its own origin.
+    private static string? Absolutize(string authority, string? url) =>
+        string.IsNullOrEmpty(url) || url.StartsWith("http", StringComparison.Ordinal) ? url : $"{authority.TrimEnd('/')}{url}";
 }
