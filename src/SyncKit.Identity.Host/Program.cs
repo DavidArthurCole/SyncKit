@@ -96,7 +96,8 @@ loginRoutes.MapGet("/sources", async (HttpContext ctx, OAuthStateStore states, H
     var component = flowDoc.RootElement.TryGetProperty("component", out var c) ? c.GetString() : null;
     if (component != "ak-stage-identification") return Results.StatusCode(StatusCodes.Status502BadGateway);
 
-    var sources = Program.ParseLoginSources(flowDoc.RootElement, authentikAuthority!);
+    var authorizeUrl = $"{authentikAuthority!.TrimEnd('/')}/application/o/authorize/?{query}";
+    var sources = Program.ParseLoginSources(flowDoc.RootElement, authentikAuthority!, authorizeUrl);
     return Results.Ok(new LoginSourcesResponse { Sources = sources });
 });
 
@@ -283,7 +284,7 @@ public partial class Program {
         return $"{returnOrigin}/auth/callback?{param}";
     }
 
-    public static List<LoginSourceResponse> ParseLoginSources(JsonElement identificationStage, string authority) {
+    public static List<LoginSourceResponse> ParseLoginSources(JsonElement identificationStage, string authority, string authorizeUrl) {
         var result = new List<LoginSourceResponse>();
         if (!identificationStage.TryGetProperty("sources", out var sourcesEl) || sourcesEl.ValueKind != JsonValueKind.Array)
             return result;
@@ -294,10 +295,12 @@ public partial class Program {
             if (component != "xak-flow-redirect") continue;
             if (!challenge.TryGetProperty("to", out var toEl)) continue;
 
+            var to = Absolutize(authority, toEl.GetString()) ?? "";
+            var separator = to.Contains('?') ? "&" : "?";
             result.Add(new LoginSourceResponse {
                 Name = source.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
                 IconUrl = Absolutize(authority, source.TryGetProperty("icon_url", out var i) && i.ValueKind != JsonValueKind.Null ? i.GetString() : null),
-                Url = Absolutize(authority, toEl.GetString()) ?? "",
+                Url = $"{to}{separator}next={Uri.EscapeDataString(authorizeUrl)}",
             });
         }
         return result;
