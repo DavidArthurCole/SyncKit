@@ -96,8 +96,11 @@ loginRoutes.MapGet("/sources", async (HttpContext ctx, OAuthStateStore states, H
     var component = flowDoc.RootElement.TryGetProperty("component", out var c) ? c.GetString() : null;
     if (component != "ak-stage-identification") return Results.StatusCode(StatusCodes.Status502BadGateway);
 
-    var authorizeUrl = $"{authentikAuthority!.TrimEnd('/')}/application/o/authorize/?{query}";
-    var sources = Program.ParseLoginSources(flowDoc.RootElement, authentikAuthority!, authorizeUrl);
+    // Authentik's source-login links only resume the pending authorize request when the source
+    // flow is entered via the authorize leg itself (ak_is_sso_flow), not via a direct link. Every
+    // button routes through /login/start so Authentik's own picker renders inside that flow.
+    var startUrl = $"/login/start?mode=redirect&returnOrigin={Uri.EscapeDataString(returnOrigin)}";
+    var sources = Program.ParseLoginSources(flowDoc.RootElement, authentikAuthority!, startUrl);
     return Results.Ok(new LoginSourcesResponse { Sources = sources });
 });
 
@@ -284,7 +287,7 @@ public partial class Program {
         return $"{returnOrigin}/auth/callback?{param}";
     }
 
-    public static List<LoginSourceResponse> ParseLoginSources(JsonElement identificationStage, string authority, string authorizeUrl) {
+    public static List<LoginSourceResponse> ParseLoginSources(JsonElement identificationStage, string authority, string startUrl) {
         var result = new List<LoginSourceResponse>();
         if (!identificationStage.TryGetProperty("sources", out var sourcesEl) || sourcesEl.ValueKind != JsonValueKind.Array)
             return result;
@@ -293,14 +296,11 @@ public partial class Program {
             if (!source.TryGetProperty("challenge", out var challenge) || challenge.ValueKind != JsonValueKind.Object) continue;
             var component = challenge.TryGetProperty("component", out var c) ? c.GetString() : null;
             if (component != "xak-flow-redirect") continue;
-            if (!challenge.TryGetProperty("to", out var toEl)) continue;
 
-            var to = Absolutize(authority, toEl.GetString()) ?? "";
-            var separator = to.Contains('?') ? "&" : "?";
             result.Add(new LoginSourceResponse {
                 Name = source.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
                 IconUrl = Absolutize(authority, source.TryGetProperty("icon_url", out var i) && i.ValueKind != JsonValueKind.Null ? i.GetString() : null),
-                Url = $"{to}{separator}next={Uri.EscapeDataString(authorizeUrl)}",
+                Url = startUrl,
             });
         }
         return result;
