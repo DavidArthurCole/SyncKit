@@ -69,9 +69,11 @@ loginRoutes.MapGet("/start", async (HttpContext ctx, OAuthStateStore states) => 
     var returnOrigin = ctx.Request.Query["returnOrigin"].ToString();
     if (string.IsNullOrEmpty(returnOrigin) || !allowedReturnOrigins.Contains(returnOrigin))
         return Results.BadRequest("returnOrigin not allowed");
+    var mode = ctx.Request.Query["mode"].ToString();
+    if (mode != "inline") mode = "popup";
 
     var (url, state, verifier) = AuthentikOAuth.AuthUrl();
-    await states.SaveAsync(state, verifier, returnOrigin, ctx.RequestAborted);
+    await states.SaveAsync(state, verifier, returnOrigin, mode, ctx.RequestAborted);
     return Results.Redirect(url);
 });
 
@@ -96,8 +98,9 @@ loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, 
         var errorOriginJson = System.Text.Json.JsonSerializer.Serialize(saved.ReturnOrigin);
         var errorHtml = $"""
             <!DOCTYPE html><html><body><script>
-            window.opener && window.opener.postMessage({errorPayloadJson}, {errorOriginJson});
-            window.close();
+            var target = window.opener || window.parent;
+            target && target.postMessage({errorPayloadJson}, {errorOriginJson});
+            {(saved.Mode == "inline" ? "" : "window.close();")}
             </script></body></html>
             """;
         return Results.Content(errorHtml, "text/html");
@@ -107,8 +110,9 @@ loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, 
     var originJson = System.Text.Json.JsonSerializer.Serialize(saved.ReturnOrigin);
     var html = $"""
         <!DOCTYPE html><html><body><script>
-        window.opener && window.opener.postMessage({payloadJson}, {originJson});
-        window.close();
+        var target = window.opener || window.parent;
+        target && target.postMessage({payloadJson}, {originJson});
+        {(saved.Mode == "inline" ? "" : "window.close();")}
         </script></body></html>
         """;
     return Results.Content(html, "text/html");

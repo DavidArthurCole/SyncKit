@@ -21,12 +21,26 @@ public class OAuthStateStoreTests {
         await using var db = await MakeDbAsync();
         var store = new OAuthStateStore(db);
 
-        await store.SaveAsync("state-1", "verifier-1", "https://eggledger.example.com", CancellationToken.None);
+        await store.SaveAsync("state-1", "verifier-1", "https://eggledger.example.com", "popup", CancellationToken.None);
         var result = await store.ConsumeAsync("state-1", CancellationToken.None);
 
         Assert.NotNull(result);
         Assert.Equal("verifier-1", result!.CodeVerifier);
         Assert.Equal("https://eggledger.example.com", result.ReturnOrigin);
+        Assert.Equal("popup", result.Mode);
+    }
+
+    [Fact]
+    public async Task SaveAsync_InlineMode_RoundTrips() {
+        if (string.IsNullOrEmpty(ConnString)) return;
+        await using var db = await MakeDbAsync();
+        var store = new OAuthStateStore(db);
+
+        await store.SaveAsync("state-inline", "verifier-x", "https://eggincognito.example.com", "inline", CancellationToken.None);
+        var result = await store.ConsumeAsync("state-inline", CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal("inline", result!.Mode);
     }
 
     [Fact]
@@ -35,7 +49,7 @@ public class OAuthStateStoreTests {
         await using var db = await MakeDbAsync();
         var store = new OAuthStateStore(db);
 
-        await store.SaveAsync("state-2", "verifier-2", "https://eggincognito.example.com", CancellationToken.None);
+        await store.SaveAsync("state-2", "verifier-2", "https://eggincognito.example.com", "popup", CancellationToken.None);
         await store.ConsumeAsync("state-2", CancellationToken.None);
         var second = await store.ConsumeAsync("state-2", CancellationToken.None);
 

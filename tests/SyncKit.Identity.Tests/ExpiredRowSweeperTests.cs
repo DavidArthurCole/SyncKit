@@ -22,8 +22,8 @@ public class ExpiredRowSweeperTests {
         var states = new OAuthStateStore(db, ttl: TimeSpan.FromMilliseconds(1));
         var liveStates = new OAuthStateStore(db, ttl: TimeSpan.FromMinutes(5));
 
-        await states.SaveAsync("expired-state", "v", "https://example.com", CancellationToken.None);
-        await liveStates.SaveAsync("live-state", "v", "https://example.com", CancellationToken.None);
+        await states.SaveAsync("expired-state", "v", "https://example.com", "popup", CancellationToken.None);
+        await liveStates.SaveAsync("live-state", "v", "https://example.com", "popup", CancellationToken.None);
         await Task.Delay(50);
 
         var sweeper = new ExpiredRowSweeper(db, TimeSpan.FromMinutes(10));
