@@ -26,7 +26,7 @@ public class OAuthStateStoreTests {
 
         Assert.NotNull(result);
         Assert.Equal("verifier-1", result!.CodeVerifier);
-        Assert.Equal("https://eggledger.example.com", result.ReturnOrigin);
+        Assert.Equal("https://eggledger.example.com", result.ReturnUrl);
         Assert.Equal("popup", result.Mode);
     }
 

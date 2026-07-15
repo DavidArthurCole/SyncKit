@@ -7,31 +7,22 @@ namespace SyncKit.Auth;
 // Resolved claims from a completed Authentik OIDC exchange.
 public sealed record AuthentikTokenResult(string Sub, string? DiscordId, string? Username, string? Avatar);
 
-// PKCE authorization-code flow against a self-hosted Authentik instance. Hand-rolled to match
-// DiscordOAuth.cs's shape exactly (this repo has no ASP.NET OIDC-handler/IConfiguration
-// convention anywhere) rather than pulling in Microsoft.AspNetCore.Authentication.OpenIdConnect.
-public static class AuthentikOAuth {
-    private static string _authority = "";
-    private static string _clientId = "";
-    private static string _clientSecret = "";
-    private static string _redirectUrl = "";
+// PKCE authorization-code flow against a self-hosted Authentik instance, scoped to one app's
+// own client_id/secret. One instance per consuming app - each app has its own Authentik
+// Application registration.
+public sealed class AuthentikOAuth(string authority, string clientId, string clientSecret, string callbackUrl) {
     private static readonly HttpClient Http = new();
 
-    public static void Init(string authority, string clientId, string clientSecret, string redirectUrl) {
-        _authority = authority.TrimEnd('/');
-        _clientId = clientId;
-        _clientSecret = clientSecret;
-        _redirectUrl = redirectUrl;
-    }
+    public string Authority { get; } = authority.TrimEnd('/');
 
-    public static (string Query, string State, string CodeVerifier) BuildAuthParams() {
+    public (string Query, string State, string CodeVerifier) BuildAuthParams() {
         var state = DiscordOAuth.RandomHex(16);
         var verifier = GenerateCodeVerifier();
         var challenge = ComputeCodeChallenge(verifier);
 
         var query = new Dictionary<string, string> {
-            ["client_id"] = _clientId,
-            ["redirect_uri"] = _redirectUrl,
+            ["client_id"] = clientId,
+            ["redirect_uri"] = callbackUrl,
             ["response_type"] = "code",
             ["scope"] = "openid+profile+email+discord_id",
             ["state"] = state,
@@ -43,20 +34,13 @@ public static class AuthentikOAuth {
         return (qs, state, verifier);
     }
 
-    public static (string Url, string State, string CodeVerifier) AuthUrl() {
-        var (qs, state, verifier) = BuildAuthParams();
-        // Authentik picks the flow to run from the provider's own Authentication Flow setting,
-        // not a hardcoded slug here - keeps this in sync with whatever flow the provider is set to.
-        return ($"{_authority}/application/o/authorize/?{qs}", state, verifier);
-    }
-
-    public static async Task<AuthentikTokenResult> HandleCallbackAsync(string code, string codeVerifier, CancellationToken ct = default) {
-        var tokenResp = await Http.PostAsync($"{_authority}/application/o/token/", new FormUrlEncodedContent(new Dictionary<string, string> {
-            ["client_id"] = _clientId,
-            ["client_secret"] = _clientSecret,
+    public async Task<AuthentikTokenResult> HandleCallbackAsync(string code, string codeVerifier, CancellationToken ct = default) {
+        var tokenResp = await Http.PostAsync($"{Authority}/application/o/token/", new FormUrlEncodedContent(new Dictionary<string, string> {
+            ["client_id"] = clientId,
+            ["client_secret"] = clientSecret,
             ["grant_type"] = "authorization_code",
             ["code"] = code,
-            ["redirect_uri"] = _redirectUrl,
+            ["redirect_uri"] = callbackUrl,
             ["code_verifier"] = codeVerifier,
         }), ct);
         tokenResp.EnsureSuccessStatusCode();
@@ -65,7 +49,7 @@ public static class AuthentikOAuth {
         if (string.IsNullOrEmpty(accessToken))
             throw new InvalidOperationException("Authentik token response missing access_token");
 
-        using var userInfoReq = new HttpRequestMessage(HttpMethod.Get, $"{_authority}/application/o/userinfo/");
+        using var userInfoReq = new HttpRequestMessage(HttpMethod.Get, $"{Authority}/application/o/userinfo/");
         userInfoReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
         var userInfoResp = await Http.SendAsync(userInfoReq, ct);
         userInfoResp.EnsureSuccessStatusCode();

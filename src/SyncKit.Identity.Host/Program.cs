@@ -8,6 +8,7 @@ using SyncKit.Auth;
 using SyncKit.Contract;
 using SyncKit.Db;
 using SyncKit.Identity;
+using SyncKit.Identity.Host;
 using SyncKit.Identity.Models;
 
 var connString = Environment.GetEnvironmentVariable("IDENTITY_DB_CONNECTION")
@@ -19,18 +20,11 @@ var adminIds = Environment.GetEnvironmentVariable("IDENTITY_ADMIN_DISCORD_IDS");
 var sweepIntervalMinutes = int.TryParse(Environment.GetEnvironmentVariable("IDENTITY_LOGIN_SWEEP_INTERVAL_MINUTES"), out var m) ? m : 10;
 
 var authentikAuthority = Environment.GetEnvironmentVariable("AUTHENTIK_AUTHORITY");
-var authentikLoginClientId = Environment.GetEnvironmentVariable("AUTHENTIK_LOGIN_CLIENT_ID");
-var authentikLoginClientSecret = Environment.GetEnvironmentVariable("AUTHENTIK_LOGIN_CLIENT_SECRET");
-var loginCallbackUrl = Environment.GetEnvironmentVariable("IDENTITY_LOGIN_CALLBACK_URL");
-var allowedReturnOrigins = (Environment.GetEnvironmentVariable("IDENTITY_LOGIN_ALLOWED_ORIGINS") ?? "")
-    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-var loginWidgetEnabled = !string.IsNullOrEmpty(authentikAuthority)
-    && !string.IsNullOrEmpty(authentikLoginClientId)
-    && !string.IsNullOrEmpty(authentikLoginClientSecret)
-    && !string.IsNullOrEmpty(loginCallbackUrl);
-if (loginWidgetEnabled)
-    AuthentikOAuth.Init(authentikAuthority!, authentikLoginClientId!, authentikLoginClientSecret!, loginCallbackUrl!);
+var authentikAppsDir = Environment.GetEnvironmentVariable("AUTHENTIK_APPS_DIR");
+var loginWidgetEnabled = !string.IsNullOrEmpty(authentikAuthority) && !string.IsNullOrEmpty(authentikAppsDir);
+var appConfigs = loginWidgetEnabled
+    ? AppAuthConfigLoader.LoadFromDirectory(authentikAppsDir!, authentikAuthority!)
+    : [];
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls($"http://*:{port}");
@@ -66,42 +60,35 @@ _ = sweeper.RunAsync(app.Lifetime.ApplicationStopping);
 // since browsers can't send IDENTITY_API_SECRET.
 var loginRoutes = app.MapGroup("/login");
 
-loginRoutes.MapGet("/start", async (HttpContext ctx, OAuthStateStore states) => {
+loginRoutes.MapGet("/sources", (HttpContext ctx) => {
     if (!loginWidgetEnabled) return Results.NotFound();
-    var returnOrigin = ctx.Request.Query["returnOrigin"].ToString();
-    if (string.IsNullOrEmpty(returnOrigin) || !allowedReturnOrigins.Contains(returnOrigin))
-        return Results.BadRequest("returnOrigin not allowed");
-    var mode = Program.ValidateMode(ctx.Request.Query["mode"].ToString());
+    var returnUrl = ctx.Request.Query["returnUrl"].ToString();
+    var app = Program.ResolveApp(returnUrl, appConfigs);
+    if (app is null) return Results.BadRequest("returnUrl not allowed");
 
-    var (url, state, verifier) = AuthentikOAuth.AuthUrl();
-    await states.SaveAsync(state, verifier, returnOrigin, mode, ctx.RequestAborted);
-    return Results.Redirect(url);
+    var mode = Program.ValidateMode(ctx.Request.Query["mode"].ToString());
+    var sources = Program.KnownProviders.Select(provider => new LoginSourceResponse {
+        Name = char.ToUpperInvariant(provider[0]) + provider[1..],
+        IconUrl = $"{authentikAuthority!.TrimEnd('/')}/static/authentik/sources/{provider}.svg",
+        Url = $"/login/go/{provider}?returnUrl={Uri.EscapeDataString(returnUrl)}&mode={Uri.EscapeDataString(mode)}",
+    }).ToList();
+    return Results.Ok(new LoginSourcesResponse { Sources = sources });
 });
 
-loginRoutes.MapGet("/sources", async (HttpContext ctx, OAuthStateStore states, HttpClient http) => {
+loginRoutes.MapGet("/go/{provider}", async (HttpContext ctx, string provider, OAuthStateStore states) => {
     if (!loginWidgetEnabled) return Results.NotFound();
-    var returnOrigin = ctx.Request.Query["returnOrigin"].ToString();
-    if (string.IsNullOrEmpty(returnOrigin) || !allowedReturnOrigins.Contains(returnOrigin))
-        return Results.BadRequest("returnOrigin not allowed");
+    var returnUrl = ctx.Request.Query["returnUrl"].ToString();
+    var app = Program.ResolveApp(returnUrl, appConfigs);
+    if (app is null) return Results.BadRequest("returnUrl not allowed");
+    if (!Program.KnownProviders.Contains(provider)) return Results.BadRequest("unknown provider");
 
-    var (query, state, verifier) = AuthentikOAuth.BuildAuthParams();
     var mode = Program.ValidateMode(ctx.Request.Query["mode"].ToString());
-    await states.SaveAsync(state, verifier, returnOrigin, mode, ctx.RequestAborted);
+    var (query, state, verifier) = app.OAuth.BuildAuthParams();
+    await states.SaveAsync(state, verifier, returnUrl, mode, ctx.RequestAborted);
 
-    var flowUrl = $"{authentikAuthority!.TrimEnd('/')}/api/v3/flows/executor/federated-authentication-flow/?query={Uri.EscapeDataString(query)}";
-    var flowResp = await http.GetAsync(flowUrl, ctx.RequestAborted);
-    if (!flowResp.IsSuccessStatusCode) return Results.StatusCode(StatusCodes.Status502BadGateway);
-
-    using var flowDoc = JsonDocument.Parse(await flowResp.Content.ReadAsStringAsync(ctx.RequestAborted));
-    var component = flowDoc.RootElement.TryGetProperty("component", out var c) ? c.GetString() : null;
-    if (component != "ak-stage-identification") return Results.StatusCode(StatusCodes.Status502BadGateway);
-
-    // Authentik's source-login links only resume the pending authorize request when the source
-    // flow is entered via the authorize leg itself (ak_is_sso_flow), not via a direct link. Every
-    // button routes through /login/start so Authentik's own picker renders inside that flow.
-    var startUrl = $"/login/start?mode=redirect&returnOrigin={Uri.EscapeDataString(returnOrigin)}";
-    var sources = Program.ParseLoginSources(flowDoc.RootElement, authentikAuthority!, startUrl);
-    return Results.Ok(new LoginSourcesResponse { Sources = sources });
+    var authorizeUrl = $"{app.OAuth.Authority}/application/o/authorize/?{query}";
+    var flowUrl = Program.BuildFlowUrl(app.OAuth.Authority, provider, authorizeUrl);
+    return Results.Redirect(flowUrl);
 });
 
 loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, IdentityResolver resolver, LoginCodeStore codes) => {
@@ -115,17 +102,21 @@ loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, 
     if (saved is null)
         return Results.BadRequest("unknown or expired state");
 
+    var app = Program.ResolveApp(saved.ReturnUrl, appConfigs);
+    if (app is null)
+        return Results.BadRequest("returnUrl not allowed");
+
     string loginCode;
     try {
-        var token = await AuthentikOAuth.HandleCallbackAsync(code, saved.CodeVerifier, ctx.RequestAborted);
+        var token = await app.OAuth.HandleCallbackAsync(code, saved.CodeVerifier, ctx.RequestAborted);
         var resolved = await resolver.ResolveAsync("authentik", token.Sub, token.DiscordId, token.Username, token.Avatar, ctx.RequestAborted);
         loginCode = await codes.IssueAsync(resolved.UserId, resolved.IsNew, ctx.RequestAborted);
     } catch (Exception) {
         if (saved.Mode == "redirect")
-            return Results.Redirect(Program.BuildRedirectCallbackUrl(saved.ReturnOrigin, code: null, error: "login_failed"));
+            return Results.Redirect(Program.BuildRedirectCallbackUrl(saved.ReturnUrl, code: null, error: "login_failed"));
 
         var errorPayloadJson = System.Text.Json.JsonSerializer.Serialize(new { source = "synckit-auth", error = "login_failed" });
-        var errorOriginJson = System.Text.Json.JsonSerializer.Serialize(saved.ReturnOrigin);
+        var errorOriginJson = System.Text.Json.JsonSerializer.Serialize(app.Origin);
         var errorHtml = $"""
             <!DOCTYPE html><html><body><script>
             var target = window.opener || window.parent;
@@ -137,10 +128,10 @@ loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, 
     }
 
     if (saved.Mode == "redirect")
-        return Results.Redirect(Program.BuildRedirectCallbackUrl(saved.ReturnOrigin, code: loginCode, error: null));
+        return Results.Redirect(Program.BuildRedirectCallbackUrl(saved.ReturnUrl, code: loginCode, error: null));
 
     var payloadJson = System.Text.Json.JsonSerializer.Serialize(new { source = "synckit-auth", code = loginCode });
-    var originJson = System.Text.Json.JsonSerializer.Serialize(saved.ReturnOrigin);
+    var originJson = System.Text.Json.JsonSerializer.Serialize(app.Origin);
     var html = $"""
         <!DOCTYPE html><html><body><script>
         var target = window.opener || window.parent;
@@ -171,7 +162,7 @@ loginRoutes.MapPost("/backchannel-logout", async (HttpContext ctx, RevocationSto
     var validationParams = new TokenValidationParameters {
         ValidIssuer = discovery.Issuer,
         IssuerSigningKeys = discovery.SigningKeys,
-        ValidAudience = authentikLoginClientId,
+        ValidateAudience = false,
         ValidateLifetime = true,
     };
 
@@ -279,34 +270,26 @@ static IdentityUserResponse ToResponse(User u) => new() {
 };
 
 public partial class Program {
+    public static readonly string[] KnownProviders = ["discord", "google", "microsoft", "github"];
+
     public static string ValidateMode(string? raw) =>
         raw is "inline" or "redirect" ? raw : "popup";
 
-    public static string BuildRedirectCallbackUrl(string returnOrigin, string? code, string? error) {
+    public static AppAuthConfig? ResolveApp(string returnUrl, Dictionary<string, AppAuthConfig> appConfigs) {
+        if (string.IsNullOrEmpty(returnUrl) || !Uri.TryCreate(returnUrl, UriKind.Absolute, out var parsed))
+            return null;
+        var origin = $"{parsed.Scheme}://{parsed.Authority}";
+        return appConfigs.TryGetValue(origin, out var app) ? app : null;
+    }
+
+    public static string BuildFlowUrl(string authority, string provider, string authorizeUrl) {
+        var flowSlug = $"{provider}-only-auth";
+        return $"{authority}/if/flow/{flowSlug}/?next={Uri.EscapeDataString(authorizeUrl)}";
+    }
+
+    public static string BuildRedirectCallbackUrl(string returnUrl, string? code, string? error) {
         var param = code is not null ? $"code={Uri.EscapeDataString(code)}" : $"error={Uri.EscapeDataString(error!)}";
-        return $"{returnOrigin}/auth/callback?{param}";
+        var separator = returnUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
+        return $"{returnUrl}{separator}{param}";
     }
-
-    public static List<LoginSourceResponse> ParseLoginSources(JsonElement identificationStage, string authority, string startUrl) {
-        var result = new List<LoginSourceResponse>();
-        if (!identificationStage.TryGetProperty("sources", out var sourcesEl) || sourcesEl.ValueKind != JsonValueKind.Array)
-            return result;
-
-        foreach (var source in sourcesEl.EnumerateArray()) {
-            if (!source.TryGetProperty("challenge", out var challenge) || challenge.ValueKind != JsonValueKind.Object) continue;
-            var component = challenge.TryGetProperty("component", out var c) ? c.GetString() : null;
-            if (component != "xak-flow-redirect") continue;
-
-            result.Add(new LoginSourceResponse {
-                Name = source.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
-                IconUrl = Absolutize(authority, source.TryGetProperty("icon_url", out var i) && i.ValueKind != JsonValueKind.Null ? i.GetString() : null),
-                Url = startUrl,
-            });
-        }
-        return result;
-    }
-
-    // Authentik returns challenge.to and icon_url relative to its own origin.
-    private static string? Absolutize(string authority, string? url) =>
-        string.IsNullOrEmpty(url) || url.StartsWith("http", StringComparison.Ordinal) ? url : $"{authority.TrimEnd('/')}{url}";
 }

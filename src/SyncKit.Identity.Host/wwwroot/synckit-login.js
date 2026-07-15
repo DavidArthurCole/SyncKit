@@ -1,5 +1,5 @@
 // src/SyncKit.Identity.Host/wwwroot/synckit-login.js
-// Embeddable login widget popup: SyncKitAuth.login("https://<identity-host>").then(({ code }) => { ... }).
+// Embeddable login widget popup: SyncKitAuth.login("https://<identity-host>", "discord").then(({ code }) => { ... }).
 // The returned code is single-use; redeem it server-side via POST /identity/redeem, never from page JS.
 (function () {
   "use strict";
@@ -21,11 +21,11 @@
     });
   }
 
-  function login(identityHostUrl) {
+  function login(identityHostUrl, provider) {
     return new Promise(function (resolve, reject) {
-      var returnOrigin = window.location.origin;
-      var startUrl = identityHostUrl.replace(/\/$/, "") + "/login/start?returnOrigin=" + encodeURIComponent(returnOrigin);
-      var popup = window.open(startUrl, "synckit-login", "width=480,height=640");
+      var returnUrl = window.location.href;
+      var goUrl = identityHostUrl.replace(/\/$/, "") + "/login/go/" + encodeURIComponent(provider) + "?returnUrl=" + encodeURIComponent(returnUrl);
+      var popup = window.open(goUrl, "synckit-login", "width=480,height=640");
 
       if (!popup) {
         reject(new Error("popup_blocked"));
