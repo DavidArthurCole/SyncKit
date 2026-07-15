@@ -41,8 +41,12 @@ public sealed class SyncKitBot : IAsyncDisposable {
         if (_channelHub is not null) await _channelHub.UpdateDashboardAsync(snapshot, ct);
     }
 
-    public async Task<string?> GetOrCreateWebhookUrlAsync(ThreadKind kind, CancellationToken ct = default) =>
-        _channelHub is null ? null : await _channelHub.GetOrCreateWebhookUrlAsync(kind, ct);
+    public async Task<string?> EnsureWebhookForThreadAsync(ThreadKind kind, ulong threadId, CancellationToken ct = default) =>
+        _channelHub is null ? null : await _channelHub.EnsureWebhookForThreadAsync(kind, threadId, ct);
+
+    public async Task TeardownWebhookForThreadAsync(ThreadKind kind, CancellationToken ct = default) {
+        if (_channelHub is not null) await _channelHub.TeardownWebhookForThreadAsync(kind, ct);
+    }
 
     // Returns null (a no-op bot) when Token is empty, mirroring Go's (noop, nil).
     public static async Task<SyncKitBot?> StartAsync(BotConfig cfg, SyncKitBotBuilder? builder = null) {
@@ -112,7 +116,6 @@ public sealed class SyncKitBot : IAsyncDisposable {
         var configStore = new ChannelConfigStore(dataSource);
         var configOverride = await configStore.GetAsync(_cfg.GuildId, _cfg.Name, CancellationToken.None);
         var dashboardChannelIdStr = configOverride?.DashboardChannelId ?? _cfg.DashboardChannelId;
-        var enabledThreadsStr = configOverride?.EnabledThreads ?? _cfg.EnabledThreads;
 
         if (string.IsNullOrEmpty(dashboardChannelIdStr)) return;
         if (!TryParseSnowflake(dashboardChannelIdStr, "dashboard channel id", out var channelId)) return;
@@ -122,8 +125,9 @@ public sealed class SyncKitBot : IAsyncDisposable {
         var store = new ChannelStateStore(dataSource);
         _channelHub = new ChannelHub(guild, channelId, _cfg.Name, store);
 
-        var enabled = ThreadKinds.ParseCsv(enabledThreadsStr);
-        await _channelHub.SyncEnabledThreadsAsync(enabled, CancellationToken.None);
+        if (!string.IsNullOrEmpty(configOverride?.GithubFeedThreadId) &&
+            ulong.TryParse(configOverride.GithubFeedThreadId, out var githubFeedThreadId))
+            await _channelHub.EnsureWebhookForThreadAsync(ThreadKind.GithubFeed, githubFeedThreadId, CancellationToken.None);
     }
 
     private async Task RegisterCommandsAsync() {

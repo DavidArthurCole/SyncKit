@@ -67,7 +67,7 @@ public class BotConfigLoaderTests {
             "DISCORD_TOKEN=t", "DISCORD_APP_ID=a", "DISCORD_GUILD_ID=g", "REPO_URL=r",
             "SHARED_ROLE_ID=sr", "SUPPORTER_ROLE_ID=pr", "DEPLOY_AGENT_URL=du",
             "DEPLOY_AGENT_SECRET=ds", "POSTGRES_CONNECTION_STRING=pg", "DASHBOARD_CHANNEL_ID=dc",
-            "ENABLED_THREADS=et",
+            "DEPLOY_NOTIFY_SECRET=dn",
         }));
         try {
             var cfg = BotConfigLoader.Load(path, _ => null);
@@ -82,7 +82,7 @@ public class BotConfigLoaderTests {
             Assert.Equal("ds", cfg.DeployAgentSecret);
             Assert.Equal("pg", cfg.PostgresConnectionString);
             Assert.Equal("dc", cfg.DashboardChannelId);
-            Assert.Equal("et", cfg.EnabledThreads);
+            Assert.Equal("dn", cfg.DeployNotifySecret);
         } finally { File.Delete(path); }
     }
 

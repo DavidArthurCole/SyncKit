@@ -13,8 +13,7 @@ public class AgentConfigTests {
           - portainer-update-stack
         watch:
           interval: 1m
-          notify_channel_guild_id: "123"
-          notify_channel_app_name: eggincognito
+          notify_bot_url: https://bot.example/internal/deploy-notify
         """;
         var cfg = AgentConfig.Parse(yaml);
 
@@ -25,8 +24,7 @@ public class AgentConfigTests {
         Assert.Equal("ghcr.io/x/y:latest", ((DockerPull)cfg.Steps[0]).Ref);
         Assert.NotNull(cfg.Watch);
         Assert.Equal(TimeSpan.FromMinutes(1), cfg.Watch!.Interval);
-        Assert.Equal("123", cfg.Watch.NotifyChannelGuildId);
-        Assert.Equal("eggincognito", cfg.Watch.NotifyChannelAppName);
+        Assert.Equal("https://bot.example/internal/deploy-notify", cfg.Watch.NotifyBotUrl);
     }
 
     [Fact]

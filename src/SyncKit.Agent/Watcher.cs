@@ -4,14 +4,13 @@ using SyncKit.Contract;
 
 namespace SyncKit.Agent;
 
-// Polls the deploy pipeline on an interval and posts Discord webhook embeds on change.
-// A failure posts red once per distinct tail, reset on any non-failure, so a broken pipeline doesn't spam every tick.
-public sealed class Watcher(string name, TimeSpan interval, Func<string> resolveWebhookUrl, Func<(DeployResponse, bool)> tryRun) {
+// Polls the deploy pipeline on an interval and forwards each notable DeployResponse to the bot.
+// A failure forwards once per distinct tail, reset on any non-failure, so a broken pipeline doesn't spam every tick.
+public sealed class Watcher(string name, TimeSpan interval, string notifyBotUrl, string notifySecret, Func<(DeployResponse, bool)> tryRun) {
     private string _lastFail = "";
 
-    public Watcher(string name, TimeSpan interval, string webhookUrl, Func<(DeployResponse, bool)> tryRun)
-        : this(name, interval, () => webhookUrl, tryRun) {
-    }
+    // Test seam: override how the DeployResponse is delivered. Returns the HTTP status logged by Tick.
+    internal Func<DeployResponse, int> Send = null!;
 
     public async Task RunAsync(CancellationToken ct) {
         using var timer = new PeriodicTimer(interval);
@@ -22,42 +21,49 @@ public sealed class Watcher(string name, TimeSpan interval, Func<string> resolve
     }
 
     internal void Tick() {
-        Console.WriteLine("watcher: tick: checking for updates");
+        Console.WriteLine($"watcher: tick: {name}: checking for updates");
         var (res, ran) = tryRun();
         if (!ran) {
             Console.WriteLine("watcher: tick: skipped, deploy already in progress");
             return;
         }
         Console.WriteLine($"watcher: tick: result ok={res.Ok} alreadyUpToDate={res.AlreadyUpToDate} from={res.FromHash} to={res.ToHash}");
-        var payload = Decide(res);
-        if (payload is null) {
+        var toSend = Decide(res);
+        if (toSend is null) {
             Console.WriteLine("watcher: tick: no notification needed");
             return;
         }
-        var webhookUrl = resolveWebhookUrl();
-        if (string.IsNullOrEmpty(webhookUrl)) {
-            Console.WriteLine("watcher: tick: notification needed but no webhook URL resolved, staying silent");
+        if (string.IsNullOrEmpty(notifyBotUrl)) {
+            Console.WriteLine("watcher: tick: notification needed but notify disabled (no notify_bot_url), staying silent");
             return;
         }
         try {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            using var content = new StringContent(payload, Encoding.UTF8, "application/json");
-            var resp = http.PostAsync(webhookUrl, content).GetAwaiter().GetResult();
-            Console.WriteLine($"watcher: tick: notified webhook -> {(int)resp.StatusCode}");
+            var status = (Send ?? PostToBot)(toSend);
+            Console.WriteLine($"watcher: tick: notified bot -> {status}");
         } catch (Exception e) { Console.Error.WriteLine($"watcher: notify: {e.Message}"); }
     }
 
-    // Maps a result to a webhook payload (null = silent) and updates dedupe state.
-    internal string? Decide(DeployResponse res) {
+    private int PostToBot(DeployResponse res) {
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        var json = JsonSerializer.Serialize(res);
+        using var content = new StringContent(json, Encoding.UTF8, "application/json");
+        using var req = new HttpRequestMessage(HttpMethod.Post, notifyBotUrl) { Content = content };
+        req.Headers.TryAddWithoutValidation("Authorization", $"Bearer {notifySecret}");
+        var resp = http.Send(req);
+        return (int)resp.StatusCode;
+    }
+
+    // Maps a result to the DeployResponse to forward (null = silent) and updates dedupe state.
+    internal DeployResponse? Decide(DeployResponse res) {
         if (res.Ok && res.AlreadyUpToDate) { _lastFail = ""; return null; }
-        if (res.Ok) { _lastFail = ""; return Payload(SuccessEmbed(res)); }
+        if (res.Ok) { _lastFail = ""; return res; }
         // Transient infra/network failures (Docker daemon down, GHCR/registry timeouts) are not deploy
         // failures the user can act on. Stay silent and leave _lastFail untouched so a genuine build
         // failure once infra recovers still posts.
         if (IsTransient(res.Tail)) return null;
         if (res.Tail == _lastFail) return null;
         _lastFail = res.Tail ?? "";
-        return Payload(FailureEmbed(res));
+        return res;
     }
 
     // Substrings that mark an infra/network hiccup rather than an actionable deploy failure. Matched
@@ -76,30 +82,4 @@ public sealed class Watcher(string name, TimeSpan interval, Func<string> resolve
     // True when the tail looks like a transient infra/network error (registry unreachable, daemon down).
     internal static bool IsTransient(string? tail) =>
         tail is not null && TransientMarkers.Any(m => tail.Contains(m, StringComparison.OrdinalIgnoreCase));
-
-    private string Payload(object embed) {
-        var body = new Dictionary<string, object> { ["embeds"] = new[] { embed } };
-        if (name != "") body["username"] = name;
-        return JsonSerializer.Serialize(body);
-    }
-
-    private static object SuccessEmbed(DeployResponse res) => new {
-        title = "Auto-deployed",
-        color = 0x57F287,
-        fields = new[] {
-            new { name = "From", value = Chip(res.FromHash, res.FromUrl), inline = true },
-            new { name = "To", value = Chip(res.ToHash, res.ToUrl), inline = true },
-        },
-    };
-
-    private static object FailureEmbed(DeployResponse res) => new {
-        title = "Auto-deploy failed.",
-        description = $"```\n{(string.IsNullOrEmpty(res.Tail) ? "(no output)" : res.Tail)}\n```",
-        color = 0xED4245,
-    };
-
-    private static string Chip(string? hash, string? url) {
-        var h = string.IsNullOrEmpty(hash) ? "unknown" : hash;
-        return string.IsNullOrEmpty(url) ? $"`{h}`" : $"[`{h}`]({url})";
-    }
 }

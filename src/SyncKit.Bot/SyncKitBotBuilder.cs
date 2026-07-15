@@ -70,7 +70,6 @@ public sealed class SyncKitBotBuilder {
             DeployAgentSecret = values.DeployAgentSecret ?? "",
             PostgresConnectionString = values.PostgresConnectionString ?? "",
             DashboardChannelId = values.DashboardChannelId ?? "",
-            EnabledThreads = values.EnabledThreads ?? "",
             Build = _build,
             GlobalCommands = _globalCommands,
             GuildCommandMirror = _guildCommandMirror,
@@ -135,19 +134,38 @@ public sealed class SyncKitBotBuilder {
             app.MapPost("/events/new-version", NewVersionHandler.Build(_eventSecret, _newVersionHandler));
 
         var values = BotConfigLoader.Load(_configFilePath, _envFallback);
+
+        Npgsql.NpgsqlDataSource? botDataSource = null;
+        ChannelConfigStore? channelConfigStore = null;
+        if (bot is not null && !string.IsNullOrEmpty(cfg.PostgresConnectionString)) {
+            botDataSource = Npgsql.NpgsqlDataSource.Create(cfg.PostgresConnectionString);
+            await using (var botConn = await botDataSource.OpenConnectionAsync())
+                await Migrator.MigrateAsync(botConn, Path.Combine(AppContext.BaseDirectory, "Migrations"));
+            channelConfigStore = new ChannelConfigStore(botDataSource);
+        }
+
         var adminClientId = _adminClientId ?? values.DiscordAdminClientId;
         var adminClientSecret = _adminClientSecret ?? values.DiscordAdminClientSecret;
         var adminCallbackUrl = _adminCallbackUrl ?? values.AdminCallbackUrl;
         if (!string.IsNullOrEmpty(adminClientId) && !string.IsNullOrEmpty(adminClientSecret) &&
-            !string.IsNullOrEmpty(adminCallbackUrl) && !string.IsNullOrEmpty(cfg.PostgresConnectionString) &&
-            bot is not null) {
+            !string.IsNullOrEmpty(adminCallbackUrl) && channelConfigStore is not null &&
+            botDataSource is not null && bot is not null) {
             DiscordOAuth.Init(adminClientId, adminClientSecret, adminCallbackUrl);
-            var adminDataSource = Npgsql.NpgsqlDataSource.Create(cfg.PostgresConnectionString);
-            await using (var adminConn = await adminDataSource.OpenConnectionAsync())
-                await Migrator.MigrateAsync(adminConn, Path.Combine(AppContext.BaseDirectory, "Migrations"));
-            var configStore = new ChannelConfigStore(adminDataSource);
-            var sessionStore = new AdminSessionStore(adminDataSource);
-            AdminRoutes.Map(app, cfg, configStore, sessionStore, bot.Client);
+            var sessionStore = new AdminSessionStore(botDataSource);
+            var stateStore = new ChannelStateStore(botDataSource);
+            var botRef = bot;
+            AdminRoutes.Map(app, cfg, channelConfigStore, sessionStore, bot.Client,
+                (threadId, ct) => botRef.EnsureWebhookForThreadAsync(ThreadKind.GithubFeed, threadId, ct),
+                ct => botRef.TeardownWebhookForThreadAsync(ThreadKind.GithubFeed, ct),
+                async (kind, ct) => (await stateStore.GetAsync(cfg.GuildId, cfg.Name, $"thread:{ThreadKinds.ToName(kind)}", ct))?.DiscordId);
+        }
+
+        var deployNotifySecret = values.DeployNotifySecret ?? "";
+        if (bot is not null && channelConfigStore is not null && !string.IsNullOrEmpty(deployNotifySecret) &&
+            ulong.TryParse(cfg.GuildId, out var notifyGuildId)) {
+            var notifier = new DeployNotifier(channelConfigStore, bot.Client, notifyGuildId, cfg.Name);
+            app.MapPost("/internal/deploy-notify",
+                DeployNotifyHandler.Build(deployNotifySecret, res => notifier.NotifyAsync(res, CancellationToken.None)));
         }
 
         configureRoutes?.Invoke(app);

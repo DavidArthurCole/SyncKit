@@ -4,17 +4,17 @@ using SyncKit.Contract;
 namespace SyncKit.Agent.Tests;
 
 public class WatcherTests {
-    private static Watcher New() => new("t", TimeSpan.FromMinutes(1), "http://hook", () => (new DeployResponse(), true));
+    private static Watcher New() => new("t", TimeSpan.FromMinutes(1), "http://bot", "secret", () => (new DeployResponse(), true));
 
     [Fact]
     public void Decide_AlreadyUpToDate_Silent() =>
         Assert.Null(New().Decide(new DeployResponse { Ok = true, AlreadyUpToDate = true }));
 
     [Fact]
-    public void Decide_Success_PostsGreenEmbed() {
-        var payload = New().Decide(new DeployResponse { Ok = true, FromHash = "a", ToHash = "b" });
-        Assert.NotNull(payload);
-        Assert.Contains("Auto-deployed", payload);
+    public void Decide_Success_ForwardsResponse() {
+        var res = new DeployResponse { Ok = true, FromHash = "a", ToHash = "b" };
+        var forwarded = New().Decide(res);
+        Assert.Same(res, forwarded);
     }
 
     [Fact]

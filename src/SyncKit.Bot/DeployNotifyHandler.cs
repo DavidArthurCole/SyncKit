@@ -4,27 +4,28 @@ using SyncKit.Contract;
 
 namespace SyncKit.Bot;
 
-// Ports Go synckit.NewVersionHandler: bearer-authed POST /events/new-version. Empty secret
-// always 401. Constant-time secret compare. Decode failure 400. Handler error 500.
-public static class NewVersionHandler {
-    public static RequestDelegate Build(string secret, Func<NewVersionEvent, Task> fn) {
+// Bearer-authed POST /internal/deploy-notify. Same auth contract as NewVersionHandler: empty
+// secret 401, bad token 401, decode failure 400, handler error 500. Body is a DeployResponse;
+// onDeploy renders and sends it to the configured thread.
+public static class DeployNotifyHandler {
+    public static RequestDelegate Build(string secret, Func<DeployResponse, Task> onDeploy) {
         return async ctx => {
             if (!await BearerAuth.CheckAsync(ctx, secret)) return;
-            NewVersionEvent? evt;
+            DeployResponse? res;
             try {
-                evt = await JsonSerializer.DeserializeAsync<NewVersionEvent>(ctx.Request.Body);
+                res = await JsonSerializer.DeserializeAsync<DeployResponse>(ctx.Request.Body);
             } catch (JsonException) {
                 ctx.Response.StatusCode = 400;
                 await ctx.Response.WriteAsync("bad request");
                 return;
             }
-            if (evt is null) {
+            if (res is null) {
                 ctx.Response.StatusCode = 400;
                 await ctx.Response.WriteAsync("bad request");
                 return;
             }
             try {
-                await fn(evt);
+                await onDeploy(res);
             } catch {
                 ctx.Response.StatusCode = 500;
                 await ctx.Response.WriteAsync("handler error");

@@ -33,8 +33,7 @@ public sealed class AgentConfig {
                 throw new FormatException($"watch.interval must be positive, got {intervalStr}");
             watch = new WatchConfig(
                 interval,
-                Scalar(TryGet(w, "notify_channel_guild_id")) ?? "",
-                Scalar(TryGet(w, "notify_channel_app_name")) ?? "");
+                Scalar(TryGet(w, "notify_bot_url")) ?? "");
         }
 
         return new AgentConfig {
@@ -109,9 +108,8 @@ public sealed class AgentConfig {
     }
 }
 
-// NotifyChannelGuildId/AppName, when both set, resolve the webhook URL from ChannelHub's
-// bot_channel_state row (thread:DeployNotifications:webhook).
+// NotifyBotUrl, when set, is the bot endpoint the agent POSTs each DeployResponse to.
+// Bearer secret comes from the DEPLOY_NOTIFY_SECRET env var, not YAML.
 public sealed record WatchConfig(
     TimeSpan Interval,
-    string NotifyChannelGuildId = "",
-    string NotifyChannelAppName = "");
+    string NotifyBotUrl = "");

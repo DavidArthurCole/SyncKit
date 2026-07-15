@@ -31,10 +31,8 @@ public sealed class BotConfig {
     // Dev flag: also register guild-scoped copies alongside global commands (faster local iteration).
     public bool GuildCommandMirror { get; init; }
 
-    // ChannelHub is enabled only when DashboardChannelId is set. EnabledThreads is a CSV of
-    // ThreadKind names; unset/empty = all threads off (see ThreadKinds.ParseCsv).
+    // ChannelHub is enabled only when DashboardChannelId is set.
     public string DashboardChannelId { get; init; } = "";
-    public string EnabledThreads { get; init; } = "";
     public string PostgresConnectionString { get; init; } = "";
 
     public string CommitUrl(string version) => $"{RepoUrl}/commit/{version}";

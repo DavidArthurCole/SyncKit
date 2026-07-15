@@ -5,16 +5,15 @@
 //   DEPLOY_AGENT_SECRET  bearer secret for POST /deploy (required)
 //   DEPLOY_AGENT_PORT    listen port (default 7777)
 //   DEPLOY_AGENT_CONFIG  yaml path (default /etc/synckit/deploy-agent.yaml)
-// Plus any env the steps read (PORTAINER_API_URL/KEY/STACK_ID/ENDPOINT_ID, notify webhook, etc).
+//   DEPLOY_NOTIFY_SECRET bearer secret for POSTing DeployResponse to the bot (watch notify)
+// Plus any env the steps read (PORTAINER_API_URL/KEY/STACK_ID/ENDPOINT_ID, etc).
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
-using Npgsql;
 using SyncKit.Agent;
-using SyncKit.Bot;
 
 var secret = Environment.GetEnvironmentVariable("DEPLOY_AGENT_SECRET");
 if (string.IsNullOrEmpty(secret)) {
@@ -55,8 +54,10 @@ app.MapPost("/deploy", (HttpRequest req) => {
 });
 
 if (cfg.Watch is { } watch) {
-    var resolveWebhookUrl = BuildWebhookResolver(watch);
-    var watcher = new Watcher(cfg.Name, watch.Interval, resolveWebhookUrl, handler.TryRun);
+    var notifySecret = Environment.GetEnvironmentVariable("DEPLOY_NOTIFY_SECRET") ?? "";
+    if (string.IsNullOrEmpty(watch.NotifyBotUrl))
+        Console.WriteLine("synckit-agent: watch notify disabled: notify_bot_url not configured");
+    var watcher = new Watcher(cfg.Name, watch.Interval, watch.NotifyBotUrl, notifySecret, handler.TryRun);
     _ = watcher.RunAsync(app.Lifetime.ApplicationStopping);
     Console.WriteLine($"synckit-agent: watching every {watch.Interval}");
 }
@@ -64,32 +65,3 @@ if (cfg.Watch is { } watch) {
 Console.WriteLine($"synckit-agent: {cfg.Name} listening on :{port} ({cfg.Steps.Count} steps)");
 app.Run();
 return 0;
-
-// Resolves the webhook URL from ChannelHub's DB-stored per-thread webhook (created/rotated by
-// SyncKit.Bot itself). Falls back to "" (silent) when guild/app/db connection aren't configured.
-static Func<string> BuildWebhookResolver(WatchConfig watch) {
-    var dbConn = Environment.GetEnvironmentVariable("IDENTITY_DB_CONNECTION");
-
-    if (watch.NotifyChannelGuildId == "" || watch.NotifyChannelAppName == "" || string.IsNullOrEmpty(dbConn)) {
-        Console.WriteLine("synckit-agent: watch notify disabled: guild/app/IDENTITY_DB_CONNECTION not configured");
-        return () => "";
-    }
-
-    var store = new ChannelStateStore(NpgsqlDataSource.Create(dbConn));
-    return () => {
-        try {
-            var webhook = store.GetAsync(watch.NotifyChannelGuildId, watch.NotifyChannelAppName,
-                "thread:DeployNotifications:webhook", CancellationToken.None).GetAwaiter().GetResult();
-            var thread = store.GetAsync(watch.NotifyChannelGuildId, watch.NotifyChannelAppName,
-                "thread:DeployNotifications", CancellationToken.None).GetAwaiter().GetResult();
-            if (webhook is null || thread is null) {
-                Console.WriteLine("synckit-agent: resolve deploy webhook: no ChannelHub thread/webhook stored yet");
-                return "";
-            }
-            return $"https://discord.com/api/webhooks/{webhook.DiscordId}/{webhook.WebhookToken}?thread_id={thread.DiscordId}";
-        } catch (Exception e) {
-            Console.Error.WriteLine($"synckit-agent: resolve deploy webhook: {e.Message}");
-            return "";
-        }
-    };
-}

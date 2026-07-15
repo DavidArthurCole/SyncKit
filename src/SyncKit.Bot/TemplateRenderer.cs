@@ -9,25 +9,38 @@ namespace SyncKit.Bot;
 public static class TemplateRenderer {
     public static string Render(string? template, string fallback, DeployResponse res, string appName) {
         if (string.IsNullOrEmpty(template)) return fallback;
+        return TryRender(template, res, appName, out var rendered) ? rendered : fallback;
+    }
+
+    // Embed-field variant: null/empty template yields "" (skip), a broken template also yields "".
+    public static string RenderOrEmpty(string? template, DeployResponse res, string appName) {
+        if (string.IsNullOrEmpty(template)) return "";
+        return TryRender(template, res, appName, out var rendered) ? rendered : "";
+    }
+
+    private static bool TryRender(string template, DeployResponse res, string appName, out string rendered) {
+        rendered = "";
         try {
             var parsed = Template.Parse(template);
-            if (parsed.HasErrors) return fallback;
+            if (parsed.HasErrors) return false;
 
-            var scriptObject = new Scriban.Runtime.ScriptObject {
-                { "ok", res.Ok },
-                { "already_up_to_date", res.AlreadyUpToDate },
-                { "tail", res.Tail ?? "" },
-                { "from_hash", res.FromHash ?? "" },
-                { "to_hash", res.ToHash ?? "" },
-                { "from_url", res.FromUrl ?? "" },
-                { "to_url", res.ToUrl ?? "" },
-                { "app_name", appName },
-            };
             var context = new TemplateContext();
-            context.PushGlobal(scriptObject);
-            return parsed.Render(context);
+            context.PushGlobal(BuildScriptObject(res, appName));
+            rendered = parsed.Render(context);
+            return true;
         } catch {
-            return fallback;
+            return false;
         }
     }
+
+    private static Scriban.Runtime.ScriptObject BuildScriptObject(DeployResponse res, string appName) => new() {
+        { "ok", res.Ok },
+        { "already_up_to_date", res.AlreadyUpToDate },
+        { "tail", res.Tail ?? "" },
+        { "from_hash", res.FromHash ?? "" },
+        { "to_hash", res.ToHash ?? "" },
+        { "from_url", res.FromUrl ?? "" },
+        { "to_url", res.ToUrl ?? "" },
+        { "app_name", appName },
+    };
 }
