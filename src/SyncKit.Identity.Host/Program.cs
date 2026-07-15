@@ -1,5 +1,4 @@
 using System.IdentityModel.Tokens.Jwt;
-using System.Text.Json;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
@@ -38,6 +37,8 @@ builder.Services.AddSingleton<UserQueries>();
 builder.Services.AddSingleton<LoginCodeStore>();
 builder.Services.AddSingleton<OAuthStateStore>();
 builder.Services.AddHttpClient();
+if (loginWidgetEnabled)
+    builder.Services.AddSingleton(sp => new IconCache(sp.GetRequiredService<IHttpClientFactory>(), authentikAuthority!));
 
 // Backs /login/backchannel-logout's logout_token signature check: fetches and caches Authentik's
 // discovery doc/JWKS independently of AuthentikOAuth's own authorization-code exchange.
@@ -60,21 +61,31 @@ _ = sweeper.RunAsync(app.Lifetime.ApplicationStopping);
 // since browsers can't send IDENTITY_API_SECRET.
 var loginRoutes = app.MapGroup("/login");
 
-loginRoutes.MapGet("/sources", async (HttpContext ctx, HttpClient http) => {
+loginRoutes.MapGet("/sources", (HttpContext ctx) => {
     if (!loginWidgetEnabled) return Results.NotFound();
     var returnUrl = ctx.Request.Query["returnUrl"].ToString();
     var app = Program.ResolveApp(returnUrl, appConfigs);
     if (app is null) return Results.BadRequest("returnUrl not allowed");
 
     var mode = Program.ValidateMode(ctx.Request.Query["mode"].ToString());
-    var icons = await Program.FetchProviderIconsAsync(http, authentikAuthority!, ctx.RequestAborted);
     var sources = Program.KnownProviders.Select(provider => new LoginSourceResponse {
         Name = char.ToUpperInvariant(provider[0]) + provider[1..],
-        IconUrl = icons.GetValueOrDefault(provider)
-            ?? $"{authentikAuthority!.TrimEnd('/')}/static/authentik/sources/{provider}.svg",
+        IconUrl = $"/login/icons/{provider}",
         Url = $"/login/go/{provider}?returnUrl={Uri.EscapeDataString(returnUrl)}&mode={Uri.EscapeDataString(mode)}",
     }).ToList();
     return Results.Ok(new LoginSourcesResponse { Sources = sources });
+});
+
+loginRoutes.MapGet("/icons/{provider}", async (HttpContext ctx, string provider, IconCache icons) => {
+    if (!loginWidgetEnabled) return Results.NotFound();
+    if (!Program.KnownProviders.Contains(provider)) return Results.NotFound();
+
+    var icon = await icons.GetAsync(provider, ctx.RequestAborted);
+    if (icon is null)
+        return Results.Redirect($"{authentikAuthority!.TrimEnd('/')}/static/authentik/sources/{provider}.svg");
+
+    ctx.Response.Headers.CacheControl = "public, max-age=86400";
+    return Results.Bytes(icon.Bytes, icon.ContentType);
 });
 
 loginRoutes.MapGet("/go/{provider}", async (HttpContext ctx, string provider, OAuthStateStore states) => {
@@ -293,35 +304,5 @@ public partial class Program {
         var param = code is not null ? $"code={Uri.EscapeDataString(code)}" : $"error={Uri.EscapeDataString(error!)}";
         var separator = returnUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
         return $"{returnUrl}{separator}{param}";
-    }
-
-    // Pulls each source's icon_url from Authentik's identification stage, keyed by lowercased source name.
-    // Strips the media-token query so the returned PNG is the plain public URL; empty on any failure so the caller falls back.
-    public static async Task<Dictionary<string, string>> FetchProviderIconsAsync(HttpClient http, string authority, CancellationToken ct) {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var trimmed = authority.TrimEnd('/');
-        try {
-            using var resp = await http.GetAsync($"{trimmed}/api/v3/flows/executor/federated-authentication-flow/", ct);
-            if (!resp.IsSuccessStatusCode) return result;
-            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-            if (!doc.RootElement.TryGetProperty("sources", out var sources) || sources.ValueKind != JsonValueKind.Array)
-                return result;
-
-            foreach (var source in sources.EnumerateArray()) {
-                var name = source.TryGetProperty("name", out var n) ? n.GetString() : null;
-                var iconUrl = source.TryGetProperty("icon_url", out var i) && i.ValueKind == JsonValueKind.String ? i.GetString() : null;
-                if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(iconUrl)) continue;
-                result[name] = NormalizeIconUrl(iconUrl, trimmed);
-            }
-        } catch (Exception) {
-            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        }
-        return result;
-    }
-
-    private static string NormalizeIconUrl(string iconUrl, string authority) {
-        var q = iconUrl.IndexOf('?', StringComparison.Ordinal);
-        if (q >= 0) iconUrl = iconUrl[..q];
-        return iconUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? iconUrl : $"{authority}/{iconUrl.TrimStart('/')}";
     }
 }
