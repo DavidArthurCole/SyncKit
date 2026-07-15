@@ -10,11 +10,10 @@ namespace SyncKit.Bot;
 // Built-ins: /verify (public), /updateserver (Administrator-gated). Extra commands whose
 // names collide with built-ins are dropped. Guild-scoped registration.
 //
-// Requests the GuildMembers gateway intent to populate the member cache (needed by
-// AdminRoutes.IsGuildAdmin). GuildMembers is privileged: the bot application must have
-// "Server Members Intent" enabled in the Discord Developer Portal (Bot tab), or
-// client.StartAsync fails to connect - the portal toggle is required in addition to the
-// code-side intent flag below, and is outside this repo's control.
+// Requests the GuildMembers gateway intent to populate the member cache. GuildMembers is
+// privileged: the bot application must have "Server Members Intent" enabled in the Discord
+// Developer Portal (Bot tab), or client.StartAsync fails to connect - the portal toggle is
+// required in addition to the code-side intent flag below, and is outside this repo's control.
 public sealed class SyncKitBot : IAsyncDisposable {
     public static readonly string[] BuiltinCommandNames = ["verify", "updateserver"];
 
@@ -23,8 +22,13 @@ public sealed class SyncKitBot : IAsyncDisposable {
     private readonly Dictionary<string, Func<SocketAutocompleteContext, Task>> _autocomplete;
     private readonly SyncKitBotBuilder? _builder;
     private ChannelHub? _channelHub;
+    private ChannelConfigStore? _configStore;
+    private ChannelStateStore? _stateStore;
 
     public Discord.WebSocket.DiscordSocketClient Client { get; }
+
+    // Null until the channel hub is enabled (dashboard channel set + Postgres) and the guild is ready.
+    public BotConfigService? ConfigService { get; private set; }
 
     private SyncKitBot(BotConfig cfg, DiscordSocketClient client, SyncKitBotBuilder? builder) {
         _cfg = cfg;
@@ -114,6 +118,7 @@ public sealed class SyncKitBot : IAsyncDisposable {
             await Migrator.MigrateAsync(conn, Path.Combine(AppContext.BaseDirectory, "Migrations"));
 
         var configStore = new ChannelConfigStore(dataSource);
+        _configStore = configStore;
         var configOverride = await configStore.GetAsync(_cfg.GuildId, _cfg.Name, CancellationToken.None);
         var dashboardChannelIdStr = configOverride?.DashboardChannelId ?? _cfg.DashboardChannelId;
 
@@ -123,11 +128,15 @@ public sealed class SyncKitBot : IAsyncDisposable {
         if (guild is null) return;
 
         var store = new ChannelStateStore(dataSource);
+        _stateStore = store;
         _channelHub = new ChannelHub(guild, channelId, _cfg.Name, store);
 
         if (!string.IsNullOrEmpty(configOverride?.GithubFeedThreadId) &&
             ulong.TryParse(configOverride.GithubFeedThreadId, out var githubFeedThreadId))
             await _channelHub.EnsureWebhookForThreadAsync(ThreadKind.GithubFeed, githubFeedThreadId, CancellationToken.None);
+
+        ConfigService = new BotConfigService(_cfg.GuildId, _cfg.Name, _configStore, _stateStore,
+            EnsureWebhookForThreadAsync, TeardownWebhookForThreadAsync);
     }
 
     private async Task RegisterCommandsAsync() {

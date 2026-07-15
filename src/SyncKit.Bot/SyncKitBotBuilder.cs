@@ -1,7 +1,6 @@
 using Discord;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Logging;
-using SyncKit.Auth;
 using SyncKit.Config;
 using SyncKit.Contract;
 using SyncKit.Db;
@@ -26,9 +25,6 @@ public sealed class SyncKitBotBuilder {
     private string? _dbMigrationsDir;
     private Func<NewVersionEvent, Task>? _newVersionHandler;
     private string _eventSecret = "";
-    private string? _adminClientId;
-    private string? _adminClientSecret;
-    private string? _adminCallbackUrl;
 
     public SyncKitBotBuilder WithConfigFile(string path) { _configFilePath = path; return this; }
     // Test-only escape hatch so unit tests don't depend on real process env vars.
@@ -48,13 +44,6 @@ public sealed class SyncKitBotBuilder {
     public SyncKitBotBuilder WithFailureEmbedBuilder(Func<string, Embed> build) { _failureBuilder = build; return this; }
     public SyncKitBotBuilder WithDb(string connStr, string migrationsDir) { _dbConnStr = connStr; _dbMigrationsDir = migrationsDir; return this; }
     public SyncKitBotBuilder WithNewVersionHandler(Func<NewVersionEvent, Task> handler, string eventSecret) { _newVersionHandler = handler; _eventSecret = eventSecret; return this; }
-
-    public SyncKitBotBuilder WithAdminUi(string clientId, string clientSecret, string callbackUrl) {
-        _adminClientId = clientId;
-        _adminClientSecret = clientSecret;
-        _adminCallbackUrl = callbackUrl;
-        return this;
-    }
 
     public BotConfig BuildConfig() {
         var values = BotConfigLoader.Load(_configFilePath, _envFallback);
@@ -142,22 +131,6 @@ public sealed class SyncKitBotBuilder {
             await using (var botConn = await botDataSource.OpenConnectionAsync())
                 await Migrator.MigrateAsync(botConn, Path.Combine(AppContext.BaseDirectory, "Migrations"));
             channelConfigStore = new ChannelConfigStore(botDataSource);
-        }
-
-        var adminClientId = _adminClientId ?? values.DiscordAdminClientId;
-        var adminClientSecret = _adminClientSecret ?? values.DiscordAdminClientSecret;
-        var adminCallbackUrl = _adminCallbackUrl ?? values.AdminCallbackUrl;
-        if (!string.IsNullOrEmpty(adminClientId) && !string.IsNullOrEmpty(adminClientSecret) &&
-            !string.IsNullOrEmpty(adminCallbackUrl) && channelConfigStore is not null &&
-            botDataSource is not null && bot is not null) {
-            DiscordOAuth.Init(adminClientId, adminClientSecret, adminCallbackUrl);
-            var sessionStore = new AdminSessionStore(botDataSource);
-            var stateStore = new ChannelStateStore(botDataSource);
-            var botRef = bot;
-            AdminRoutes.Map(app, cfg, channelConfigStore, sessionStore, bot.Client,
-                (threadId, ct) => botRef.EnsureWebhookForThreadAsync(ThreadKind.GithubFeed, threadId, ct),
-                ct => botRef.TeardownWebhookForThreadAsync(ThreadKind.GithubFeed, ct),
-                async (kind, ct) => (await stateStore.GetAsync(cfg.GuildId, cfg.Name, $"thread:{ThreadKinds.ToName(kind)}", ct))?.DiscordId);
         }
 
         var deployNotifySecret = values.DeployNotifySecret ?? "";
