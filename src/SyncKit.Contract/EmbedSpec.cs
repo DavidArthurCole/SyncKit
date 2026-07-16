@@ -15,7 +15,9 @@ public sealed record EmbedSpec(
     [property: JsonPropertyName("thumbnailUrl")] string? ThumbnailUrl,
     [property: JsonPropertyName("footerText")] string? FooterText,
     [property: JsonPropertyName("footerIconUrl")] string? FooterIconUrl,
-    [property: JsonPropertyName("timestamp")] bool Timestamp);
+    [property: JsonPropertyName("timestamp")] bool Timestamp,
+    // With Timestamp on: null = deploy-moment, a value = that fixed instant.
+    [property: JsonPropertyName("timestampFixed")] DateTimeOffset? TimestampFixed = null);
 
 public sealed record EmbedFieldSpec(
     [property: JsonPropertyName("name")] string Name,

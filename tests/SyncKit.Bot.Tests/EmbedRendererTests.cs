@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using SyncKit.Bot;
 using SyncKit.Contract;
@@ -8,9 +9,10 @@ namespace SyncKit.Bot.Tests;
 public class EmbedRendererTests {
     private static EmbedSpec Spec(
         string? title = null, string? description = null,
-        IReadOnlyList<EmbedFieldSpec>? fields = null, uint? color = null, bool timestamp = false) =>
+        IReadOnlyList<EmbedFieldSpec>? fields = null, uint? color = null, bool timestamp = false,
+        DateTimeOffset? timestampFixed = null) =>
         new(color, null, null, null, title, null, description,
-            fields ?? new List<EmbedFieldSpec>(), null, null, null, null, timestamp);
+            fields ?? new List<EmbedFieldSpec>(), null, null, null, null, timestamp, timestampFixed);
 
     [Fact]
     public void Render_SubstitutesVariablesInFields() {
@@ -64,5 +66,33 @@ public class EmbedRendererTests {
 
         Assert.Equal("Hello", embed.Title);
         Assert.Equal(0x57F287u, embed.Color!.Value.RawValue);
+    }
+
+    [Fact]
+    public void Render_TimestampOff_NoTimestamp() {
+        var embed = EmbedRenderer.Render(Spec(timestamp: false), new DeployResponse(), "app");
+        Assert.Null(embed.Timestamp);
+    }
+
+    [Fact]
+    public void Render_TimestampOn_NoFixed_UsesDeployMoment() {
+        var before = DateTimeOffset.UtcNow.AddSeconds(-2);
+        var embed = EmbedRenderer.Render(Spec(timestamp: true), new DeployResponse(), "app");
+        Assert.NotNull(embed.Timestamp);
+        Assert.InRange(embed.Timestamp!.Value, before, DateTimeOffset.UtcNow.AddSeconds(2));
+    }
+
+    [Fact]
+    public void Render_TimestampOn_Fixed_UsesFixedInstant() {
+        var fixedAt = new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);
+        var embed = EmbedRenderer.Render(Spec(timestamp: true, timestampFixed: fixedAt), new DeployResponse(), "app");
+        Assert.Equal(fixedAt, embed.Timestamp);
+    }
+
+    [Fact]
+    public void Render_TimestampOff_FixedIgnored() {
+        var fixedAt = new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);
+        var embed = EmbedRenderer.Render(Spec(timestamp: false, timestampFixed: fixedAt), new DeployResponse(), "app");
+        Assert.Null(embed.Timestamp);
     }
 }

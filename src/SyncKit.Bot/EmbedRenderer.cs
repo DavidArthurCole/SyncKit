@@ -60,7 +60,7 @@ public static class EmbedRenderer {
             }
 
             if (spec.Color.HasValue) builder.WithColor(new Color(spec.Color.Value));
-            if (spec.Timestamp) builder.WithCurrentTimestamp();
+            if (spec.Timestamp) builder.WithTimestamp(spec.TimestampFixed ?? DateTimeOffset.UtcNow);
 
             return builder.Build();
         } catch {
