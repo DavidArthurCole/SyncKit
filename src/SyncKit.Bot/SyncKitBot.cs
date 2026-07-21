@@ -139,9 +139,11 @@ public sealed class SyncKitBot : IAsyncDisposable {
         ConfigService = new BotConfigService(_cfg.GuildId, _cfg.Name, _configStore, _stateStore,
             EnsureWebhookForThreadAsync, TeardownWebhookForThreadAsync);
 
-        if (_builder?.DashboardProvider is { } dashboardProvider) {
+        if (_cfg.DashboardProvider is { } dashboardProvider) {
+            var interval = _cfg.DashboardRefreshInterval < TimeSpan.FromSeconds(60)
+                ? TimeSpan.FromSeconds(60) : _cfg.DashboardRefreshInterval;
             _dashboardCts = new CancellationTokenSource();
-            _ = RunDashboardLoopAsync(dashboardProvider, _builder.DashboardRefreshInterval, _dashboardCts.Token);
+            _ = RunDashboardLoopAsync(dashboardProvider, interval, _dashboardCts.Token);
         }
     }
 

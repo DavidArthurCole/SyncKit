@@ -35,6 +35,12 @@ public sealed class BotConfig {
     public string DashboardChannelId { get; init; } = "";
     public string PostgresConnectionString { get; init; } = "";
 
+    // Living dashboard embed: the host supplies the snapshot source; SyncKit posts on Ready and
+    // refreshes on the interval, diff-gated. Null provider = no dashboard loop. Interval is floored
+    // at 60s at the point of use. Set directly on BotConfig, or via SyncKitBotBuilder.WithDashboard*.
+    public Func<CancellationToken, Task<DashboardSnapshot>>? DashboardProvider { get; init; }
+    public TimeSpan DashboardRefreshInterval { get; init; } = TimeSpan.FromMinutes(5);
+
     public string CommitUrl(string version) => $"{RepoUrl}/commit/{version}";
 }
 
