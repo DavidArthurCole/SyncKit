@@ -24,6 +24,7 @@ public sealed class SyncKitBot : IAsyncDisposable {
     private ChannelHub? _channelHub;
     private ChannelConfigStore? _configStore;
     private ChannelStateStore? _stateStore;
+    private CancellationTokenSource? _dashboardCts;
 
     public Discord.WebSocket.DiscordSocketClient Client { get; }
 
@@ -137,6 +138,36 @@ public sealed class SyncKitBot : IAsyncDisposable {
 
         ConfigService = new BotConfigService(_cfg.GuildId, _cfg.Name, _configStore, _stateStore,
             EnsureWebhookForThreadAsync, TeardownWebhookForThreadAsync);
+
+        if (_builder?.DashboardProvider is { } dashboardProvider) {
+            _dashboardCts = new CancellationTokenSource();
+            _ = RunDashboardLoopAsync(dashboardProvider, _builder.DashboardRefreshInterval, _dashboardCts.Token);
+        }
+    }
+
+    // SyncKit owns the "living" cadence: an initial refresh on Ready, then a diff-gated periodic
+    // refresh. The host supplies the snapshot via the provider; ChannelHub skips the edit when the
+    // content is unchanged, so a redundant tick costs nothing.
+    private async Task RunDashboardLoopAsync(
+        Func<CancellationToken, Task<DashboardSnapshot>> provider, TimeSpan interval, CancellationToken ct) {
+        try {
+            await RefreshDashboardOnceAsync(provider, ct);
+            using var timer = new PeriodicTimer(interval);
+            while (await timer.WaitForNextTickAsync(ct))
+                await RefreshDashboardOnceAsync(provider, ct);
+        } catch (OperationCanceledException) { /* shutdown */ }
+    }
+
+    private async Task RefreshDashboardOnceAsync(
+        Func<CancellationToken, Task<DashboardSnapshot>> provider, CancellationToken ct) {
+        try {
+            var snapshot = await provider(ct);
+            if (_channelHub is not null) await _channelHub.UpdateDashboardAsync(snapshot, ct);
+        } catch (OperationCanceledException) {
+            throw;
+        } catch (Exception ex) {
+            Console.Error.WriteLine($"bot: dashboard refresh: {ex.Message}");
+        }
     }
 
     private async Task RegisterCommandsAsync() {
@@ -287,6 +318,7 @@ public sealed class SyncKitBot : IAsyncDisposable {
     }
 
     public async ValueTask DisposeAsync() {
+        _dashboardCts?.Cancel();
         if (!string.IsNullOrEmpty(_cfg.AppId) && TryParseSnowflake(_cfg.GuildId, "guild id", out var guildId)) {
             var guild = Client.GetGuild(guildId);
             if (guild is not null) {
@@ -296,5 +328,6 @@ public sealed class SyncKitBot : IAsyncDisposable {
         }
         await Client.StopAsync();
         await Client.DisposeAsync();
+        _dashboardCts?.Dispose();
     }
 }

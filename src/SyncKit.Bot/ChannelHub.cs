@@ -10,14 +10,21 @@ public sealed class ChannelHub(SocketGuild guild, ulong dashboardChannelId, stri
     private const string DashboardKind = "dashboard";
     private static string ThreadStateKind(ThreadKind kind) => $"thread:{ThreadKinds.ToName(kind)}";
 
+    private string? _lastSignature;
+
     public async Task UpdateDashboardAsync(DashboardSnapshot snapshot, CancellationToken ct) {
         if (guild.GetChannel(dashboardChannelId) is not ITextChannel channel) return;
-        var embed = DefaultEmbeds.Dashboard(snapshot);
 
+        var signature = DashboardSignature.Of(snapshot);
         var existing = await store.GetAsync(guild.Id.ToString(), appName, DashboardKind, ct);
+        var hasMessage = existing is not null && ulong.TryParse(existing.DiscordId, out _);
+        if (hasMessage && signature == _lastSignature) return;
+
+        var embed = DefaultEmbeds.Dashboard(snapshot);
         if (existing is not null && ulong.TryParse(existing.DiscordId, out var messageId)) {
             try {
                 await channel.ModifyMessageAsync(messageId, m => m.Embed = embed);
+                _lastSignature = signature;
                 return;
             } catch (Discord.Net.HttpException ex) when (ex.HttpCode == System.Net.HttpStatusCode.NotFound) {
                 // Message was deleted out-of-band; fall through and re-create.
@@ -26,6 +33,7 @@ public sealed class ChannelHub(SocketGuild guild, ulong dashboardChannelId, stri
 
         var posted = await channel.SendMessageAsync(embed: embed);
         await store.UpsertAsync(guild.Id.ToString(), appName, DashboardKind, posted.Id.ToString(), null, ct);
+        _lastSignature = signature;
     }
 
     // Stores the pasted thread id as canonical, then ensures a webhook on the thread's parent channel.

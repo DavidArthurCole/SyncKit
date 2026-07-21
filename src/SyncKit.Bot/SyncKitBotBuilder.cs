@@ -26,6 +26,9 @@ public sealed class SyncKitBotBuilder {
     private Func<NewVersionEvent, Task>? _newVersionHandler;
     private string _eventSecret = "";
 
+    internal Func<CancellationToken, Task<DashboardSnapshot>>? DashboardProvider { get; private set; }
+    internal TimeSpan DashboardRefreshInterval { get; private set; } = TimeSpan.FromMinutes(5);
+
     public SyncKitBotBuilder WithConfigFile(string path) { _configFilePath = path; return this; }
     // Test-only escape hatch so unit tests don't depend on real process env vars.
     public SyncKitBotBuilder WithEnvFallback(Func<string, string?> envFallback) { _envFallback = envFallback; return this; }
@@ -44,6 +47,11 @@ public sealed class SyncKitBotBuilder {
     public SyncKitBotBuilder WithFailureEmbedBuilder(Func<string, Embed> build) { _failureBuilder = build; return this; }
     public SyncKitBotBuilder WithDb(string connStr, string migrationsDir) { _dbConnStr = connStr; _dbMigrationsDir = migrationsDir; return this; }
     public SyncKitBotBuilder WithNewVersionHandler(Func<NewVersionEvent, Task> handler, string eventSecret) { _newVersionHandler = handler; _eventSecret = eventSecret; return this; }
+    public SyncKitBotBuilder WithDashboardProvider(Func<CancellationToken, Task<DashboardSnapshot>> provider) { DashboardProvider = provider; return this; }
+    public SyncKitBotBuilder WithDashboardRefreshInterval(TimeSpan interval) {
+        DashboardRefreshInterval = interval < TimeSpan.FromSeconds(60) ? TimeSpan.FromSeconds(60) : interval;
+        return this;
+    }
 
     public BotConfig BuildConfig() {
         var values = BotConfigLoader.Load(_configFilePath, _envFallback);
