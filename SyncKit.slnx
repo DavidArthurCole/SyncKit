@@ -12,6 +12,8 @@
     <Project Path="src/SyncKit.Identity.Client/SyncKit.Identity.Client.csproj" />
     <Project Path="src/SyncKit.Identity.Host/SyncKit.Identity.Host.csproj" />
     <Project Path="src/SyncKit.Identity.Tools/SyncKit.Identity.Tools.csproj" />
+    <Project Path="src/SyncKit.Metrics/SyncKit.Metrics.csproj" />
+    <Project Path="src/SyncKit.Metrics.AdminUi/SyncKit.Metrics.AdminUi.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SyncKit.Agent.Tests/SyncKit.Agent.Tests.csproj" />
@@ -25,5 +27,6 @@
     <Project Path="tests/SyncKit.Identity.Client.Tests/SyncKit.Identity.Client.Tests.csproj" />
     <Project Path="tests/SyncKit.Identity.Host.Tests/SyncKit.Identity.Host.Tests.csproj" />
     <Project Path="tests/SyncKit.Identity.Tools.Tests/SyncKit.Identity.Tools.Tests.csproj" />
+    <Project Path="tests/SyncKit.Metrics.Tests/SyncKit.Metrics.Tests.csproj" />
   </Folder>
 </Solution>

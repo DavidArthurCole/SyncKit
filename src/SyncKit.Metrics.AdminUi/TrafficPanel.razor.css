@@ -1,0 +1,107 @@
+.skm {
+    display: block;
+    color: #dbdee1;
+    font-size: 0.9rem;
+}
+
+.skm-muted {
+    color: #949ba4;
+}
+
+.skm-warn {
+    color: #f0b232;
+    margin: 0.5rem 0;
+}
+
+.skm-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.skm-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.6rem 0.75rem;
+    background: #2b2d31;
+    border: 1px solid #1e1f22;
+    border-radius: 6px;
+}
+
+.skm-tile-n {
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: #f2f3f5;
+}
+
+.skm-tile-l {
+    font-size: 0.75rem;
+    color: #949ba4;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.skm-spark {
+    display: block;
+    width: 100%;
+    height: 44px;
+    color: #5865f2;
+    margin-bottom: 0.75rem;
+}
+
+.skm-tabs {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 0.5rem;
+}
+
+.skm-spacer {
+    flex: 1;
+}
+
+.skm-tab, .skm-refresh {
+    padding: 0.3rem 0.7rem;
+    background: #2b2d31;
+    color: #dbdee1;
+    border: 1px solid #1e1f22;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.82rem;
+}
+
+.skm-tab-on {
+    background: #5865f2;
+    color: #fff;
+    border-color: #5865f2;
+}
+
+.skm-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+}
+
+.skm-table th, .skm-table td {
+    text-align: left;
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid #26282c;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 320px;
+}
+
+.skm-table th {
+    color: #949ba4;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.skm-num {
+    text-align: right;
+}

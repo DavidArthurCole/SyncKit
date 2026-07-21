@@ -1,5 +1,5 @@
 using Npgsql;
-using SyncKit.Identity.Models;
+using SyncKit.Contract;
 
 namespace SyncKit.Identity;
 

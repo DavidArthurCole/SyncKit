@@ -12,6 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\SyncKit.Contract\SyncKit.Contract.csproj" />
     <ProjectReference Include="..\SyncKit.Db\SyncKit.Db.csproj" />
   </ItemGroup>
 

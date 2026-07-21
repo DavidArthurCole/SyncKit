@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Description>Shared request-rate and traffic-audit metrics for synckit: in-memory ring buffers, path/IP rollups, request-bucket classifier, recording middleware, optional persistence sink.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SyncKit.Contract\SyncKit.Contract.csproj" />
+  </ItemGroup>
+
+</Project>

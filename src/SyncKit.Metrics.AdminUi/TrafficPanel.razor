@@ -1,0 +1,144 @@
+@rendermode @(RenderMode.InteractiveServer)
+@inject IServiceProvider Services
+@implements IAsyncDisposable
+
+<section class="skm">
+  @if (_source is null) {
+    <p class="skm-muted">Metrics source not configured (register an ITrafficSource).</p>
+  } else if (_snap is null) {
+    <p class="skm-muted">Loading…</p>
+  } else {
+    <div class="skm-kpis">
+      <div class="skm-tile">
+        <span class="skm-tile-n">@RequestsHour</span>
+        <span class="skm-tile-l">Requests (1h)</span>
+      </div>
+      <div class="skm-tile">
+        <span class="skm-tile-n">@_snap.Paths.Count</span>
+        <span class="skm-tile-l">Distinct paths</span>
+      </div>
+      <div class="skm-tile">
+        <span class="skm-tile-n">@Limited</span>
+        <span class="skm-tile-l">Limited (429)</span>
+      </div>
+      <div class="skm-tile">
+        <span class="skm-tile-n">@_snap.Buckets.External</span>
+        <span class="skm-tile-l">External</span>
+      </div>
+    </div>
+
+    <svg class="skm-spark" viewBox="0 0 240 40" preserveAspectRatio="none" role="img" aria-label="Requests per minute">
+      <polyline points="@Spark()" fill="none" stroke="currentColor" stroke-width="1.5" />
+    </svg>
+
+    @if (_snap.Buckets.KeysCapped) {
+      <p class="skm-warn">Rollup key cap reached; some paths/IPs are not counted.</p>
+    }
+
+    <div class="skm-tabs">
+      <button class="@TabClass("paths")" @onclick='() => _tab = "paths"'>By endpoint</button>
+      <button class="@TabClass("ips")" @onclick='() => _tab = "ips"'>By IP</button>
+      <button class="@TabClass("recent")" @onclick='() => _tab = "recent"'>Recent</button>
+      <span class="skm-spacer"></span>
+      <button class="skm-refresh" @onclick="LoadAsync">Refresh</button>
+    </div>
+
+    @if (_tab == "paths") {
+      <table class="skm-table">
+        <thead><tr><th>Path</th><th class="skm-num">Count</th></tr></thead>
+        <tbody>
+          @foreach (var p in _snap.Paths) {
+            <tr><td>@p.Path</td><td class="skm-num">@p.Count</td></tr>
+          }
+        </tbody>
+      </table>
+    } else if (_tab == "ips") {
+      <table class="skm-table">
+        <thead><tr><th>IP</th><th class="skm-num">Count</th><th>Last seen (UTC)</th></tr></thead>
+        <tbody>
+          @foreach (var ip in _snap.Ips) {
+            <tr><td>@ip.Ip</td><td class="skm-num">@ip.Count</td><td>@Clock(ip.LastSeenEpochSeconds)</td></tr>
+          }
+        </tbody>
+      </table>
+    } else {
+      <table class="skm-table">
+        <thead><tr><th>Time (UTC)</th><th>Method</th><th>Path</th><th class="skm-num">Status</th><th>Bucket</th><th>IP</th></tr></thead>
+        <tbody>
+          @foreach (var r in _snap.Recent) {
+            <tr><td>@Clock(r.AtEpochSeconds)</td><td>@r.Method</td><td>@r.Path</td><td class="skm-num">@r.Status</td><td>@r.Bucket</td><td>@r.Ip</td></tr>
+          }
+        </tbody>
+      </table>
+    }
+  }
+</section>
+
+@code {
+    [Parameter] public int RefreshIntervalSeconds { get; set; }
+
+    private ITrafficSource? _source;
+    private TrafficSnapshot? _snap;
+    private string _tab = "paths";
+    private CancellationTokenSource? _loopCts;
+
+    private int RequestsHour => _snap!.Minutes.Sum(m => m.Total);
+    private int Limited => _snap!.Minutes.Sum(m => m.Limited);
+
+    protected override async Task OnInitializedAsync() {
+        _source = Services.GetService<ITrafficSource>();
+        await LoadAsync();
+        if (RefreshIntervalSeconds > 0 && _source is not null) {
+            _loopCts = new CancellationTokenSource();
+            _ = RunLoopAsync(_loopCts.Token);
+        }
+    }
+
+    private async Task LoadAsync() {
+        if (_source is null) return;
+        try {
+            _snap = await _source.GetSnapshotAsync(CancellationToken.None);
+        } catch {
+            _snap = null;
+        }
+    }
+
+    private async Task RunLoopAsync(CancellationToken ct) {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(Math.Max(2, RefreshIntervalSeconds)));
+        try {
+            while (await timer.WaitForNextTickAsync(ct)) {
+                await LoadAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        } catch (OperationCanceledException) {
+        }
+    }
+
+    private string TabClass(string tab) => tab == _tab ? "skm-tab skm-tab-on" : "skm-tab";
+
+    private string Spark() {
+        var mins = _snap!.Minutes;
+        if (mins.Count == 0) return "";
+        var max = Math.Max(1, mins.Max(m => m.Total));
+        const double w = 240, h = 40;
+        var step = mins.Count > 1 ? w / (mins.Count - 1) : 0;
+        var sb = new System.Text.StringBuilder();
+        for (var i = 0; i < mins.Count; i++) {
+            var x = i * step;
+            var y = h - (mins[i].Total / (double)max * h);
+            if (i > 0) sb.Append(' ');
+            sb.Append(x.ToString("0.##", CultureInfo.InvariantCulture)).Append(',').Append(y.ToString("0.##", CultureInfo.InvariantCulture));
+        }
+        return sb.ToString();
+    }
+
+    private static string Clock(long epoch) =>
+        DateTimeOffset.FromUnixTimeSeconds(epoch).UtcDateTime.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+
+    public async ValueTask DisposeAsync() {
+        if (_loopCts is not null) {
+            await _loopCts.CancelAsync();
+            _loopCts.Dispose();
+        }
+    }
+}
