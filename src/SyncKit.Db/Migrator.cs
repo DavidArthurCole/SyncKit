@@ -48,6 +48,7 @@ public static class Migrator {
                 await rec.ExecuteNonQueryAsync(ct);
             }
             await tx.CommitAsync(ct);
+            current = v;
         }
     }
 }

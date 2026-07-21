@@ -3,6 +3,7 @@
     <Project Path="src/SyncKit.Agent/SyncKit.Agent.csproj" />
     <Project Path="src/SyncKit.Auth/SyncKit.Auth.csproj" />
     <Project Path="src/SyncKit.Bot/SyncKit.Bot.csproj" />
+    <Project Path="src/SyncKit.Bot.AdminUi/SyncKit.Bot.AdminUi.csproj" />
     <Project Path="src/SyncKit.Config/SyncKit.Config.csproj" />
     <Project Path="src/SyncKit.Contract/SyncKit.Contract.csproj" />
     <Project Path="src/SyncKit.Core/SyncKit.Core.csproj" />

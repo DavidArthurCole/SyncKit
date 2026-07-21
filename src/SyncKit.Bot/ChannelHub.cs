@@ -6,7 +6,9 @@ namespace SyncKit.Bot;
 
 // Owns the dashboard message for one guild and ensures/tears down the GithubFeed webhook for a
 // pasted thread id. The bot no longer creates or archives threads; thread ids are set by paste.
-public sealed class ChannelHub(SocketGuild guild, ulong dashboardChannelId, string appName, ChannelStateStore store) {
+public sealed class ChannelHub(
+    SocketGuild guild, ulong dashboardChannelId, string appName,
+    ChannelStateStore store, ChannelConfigStore configStore) {
     private const string DashboardKind = "dashboard";
     private static string ThreadStateKind(ThreadKind kind) => $"thread:{ThreadKinds.ToName(kind)}";
 
@@ -15,12 +17,15 @@ public sealed class ChannelHub(SocketGuild guild, ulong dashboardChannelId, stri
     public async Task UpdateDashboardAsync(DashboardSnapshot snapshot, CancellationToken ct) {
         if (guild.GetChannel(dashboardChannelId) is not ITextChannel channel) return;
 
-        var signature = DashboardSignature.Of(snapshot);
+        var config = await configStore.GetAsync(guild.Id.ToString(), appName, ct);
+        var spec = MessageSpecs.ParseEmbed(config?.DashboardEmbedJson) ?? DashboardEmbedDefaults.Default;
+        var signature = DashboardSignature.Of(snapshot) + "|spec|" + (config?.DashboardEmbedJson ?? "");
+
         var existing = await store.GetAsync(guild.Id.ToString(), appName, DashboardKind, ct);
         var hasMessage = existing is not null && ulong.TryParse(existing.DiscordId, out _);
         if (hasMessage && signature == _lastSignature) return;
 
-        var embed = DefaultEmbeds.Dashboard(snapshot);
+        var embed = EmbedRenderer.Render(spec, DashboardVars.Build(snapshot));
         if (existing is not null && ulong.TryParse(existing.DiscordId, out var messageId)) {
             try {
                 await channel.ModifyMessageAsync(messageId, m => m.Embed = embed);

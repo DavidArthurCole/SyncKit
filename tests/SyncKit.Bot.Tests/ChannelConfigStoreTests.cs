@@ -33,8 +33,9 @@ public class ChannelConfigStoreTests {
         await using var db = await MakeDbAsync();
         var store = new ChannelConfigStore(db);
 
-        await store.UpsertAsync("guild-cc-1", "eggledger", "111", "222", "333",
-            "{\"title\":\"ok\"}", "{\"title\":\"fail\"}", "{\"title\":\"utd\"}", CancellationToken.None);
+        await store.UpsertAsync(new ChannelConfig("guild-cc-1", "eggledger", "111", "222", "333",
+            "{\"title\":\"ok\"}", "{\"title\":\"fail\"}", "{\"title\":\"utd\"}", "{\"title\":\"dash\"}",
+            "{\"kind\":\"components\"}", null, null), CancellationToken.None);
         var result = await store.GetAsync("guild-cc-1", "eggledger", CancellationToken.None);
 
         Assert.NotNull(result);
@@ -44,6 +45,9 @@ public class ChannelConfigStoreTests {
         Assert.Equal("{\"title\":\"ok\"}", result.SuccessEmbedJson);
         Assert.Equal("{\"title\":\"fail\"}", result.FailureEmbedJson);
         Assert.Equal("{\"title\":\"utd\"}", result.UptodateEmbedJson);
+        Assert.Equal("{\"title\":\"dash\"}", result.DashboardEmbedJson);
+        Assert.Equal("{\"kind\":\"components\"}", result.SuccessMessageJson);
+        Assert.Null(result.FailureMessageJson);
     }
 
     [Fact]
@@ -52,8 +56,8 @@ public class ChannelConfigStoreTests {
         await using var db = await MakeDbAsync();
         var store = new ChannelConfigStore(db);
 
-        await store.UpsertAsync("guild-cc-2", "eggledger", "111", null, null, null, null, null, CancellationToken.None);
-        await store.UpsertAsync("guild-cc-2", "eggledger", "222", null, null, null, null, null, CancellationToken.None);
+        await store.UpsertAsync(new ChannelConfig("guild-cc-2", "eggledger", "111", null, null, null, null, null, null), CancellationToken.None);
+        await store.UpsertAsync(new ChannelConfig("guild-cc-2", "eggledger", "222", null, null, null, null, null, null), CancellationToken.None);
         var result = await store.GetAsync("guild-cc-2", "eggledger", CancellationToken.None);
 
         Assert.Equal("222", result!.DashboardChannelId);
@@ -65,11 +69,12 @@ public class ChannelConfigStoreTests {
         await using var db = await MakeDbAsync();
         var store = new ChannelConfigStore(db);
 
-        await store.UpsertAsync("guild-cc-3", "eggledger", null, null, null, null, null, null, CancellationToken.None);
+        await store.UpsertAsync(new ChannelConfig("guild-cc-3", "eggledger", null, null, null, null, null, null, null), CancellationToken.None);
         var result = await store.GetAsync("guild-cc-3", "eggledger", CancellationToken.None);
 
         Assert.NotNull(result);
         Assert.Null(result!.DashboardChannelId);
         Assert.Null(result.SuccessEmbedJson);
+        Assert.Null(result.SuccessMessageJson);
     }
 }

@@ -1,0 +1,348 @@
+@rendermode @(RenderMode.InteractiveServer)
+@inject IServiceProvider Services
+
+@* Standardized SyncKit bot-config editor. Edits the per-event deploy notifications as a MessageSpec
+   (embed OR ComponentsV2 + mentions) plus the dashboard embed. Talks to BotConfigService directly;
+   the host page is responsible for admin gating. Self-styled via scoped CSS. *@
+
+<section class="skc">
+  @if (Service is null) {
+    <p class="skc-muted">Bot not configured (needs a bot token, a dashboard channel, and Postgres).</p>
+  } else if (!_loaded) {
+    <p class="skc-muted">Loading…</p>
+  } else {
+    <div class="skc-ids">
+      <label>Dashboard channel ID
+        <input @bind="_dashboardChannelId" placeholder="snowflake" />
+      </label>
+      <label>GitHub feed thread ID
+        <input @bind="_githubFeedThreadId" placeholder="snowflake (optional)" />
+      </label>
+      <label>Deploy notifications thread ID
+        <input @bind="_deployThreadId" placeholder="snowflake (unset = no deploy pings)" />
+      </label>
+      @if (!string.IsNullOrEmpty(_webhookUrl)) {
+        <label>GitHub webhook URL (read-only)
+          <input value="@_webhookUrl" readonly />
+        </label>
+      }
+    </div>
+
+    <div class="skc-tabs">
+      @foreach (var t in Tabs) {
+        <button type="button" class="@(_tab == t.Key ? "skc-tab skc-tab-on" : "skc-tab")" @onclick="() => _tab = t.Key">@t.Label</button>
+      }
+      <button type="button" class="skc-vars-btn" @onclick="() => _varsOpen = !_varsOpen">Variables</button>
+    </div>
+
+    @if (_varsOpen) {
+      <div class="skc-vars">
+        @foreach (var v in ActiveVariables) {
+          <div class="skc-var"><code>@v.Name</code><span>@v.Desc</span></div>
+        }
+      </div>
+    }
+
+    @if (_tab == "dashboard") {
+      @EmbedEditor(_dashboard)
+    } else {
+      var ev = Current;
+      <div class="skc-kind">
+        <label><input type="radio" name="kind" checked="@(ev.Kind == MessageKind.Embed)" @onchange="() => ev.Kind = MessageKind.Embed" /> Embed</label>
+        <label><input type="radio" name="kind" checked="@(ev.Kind == MessageKind.Components)" @onchange="() => ev.Kind = MessageKind.Components" /> Components (can ping)</label>
+      </div>
+      @if (ev.Kind == MessageKind.Embed) {
+        @EmbedEditor(ev.Embed)
+      } else {
+        @ComponentEditor(ev.Components)
+      }
+      @MentionEditor(ev.Mentions)
+    }
+
+    <div class="skc-actions">
+      <button type="button" class="skc-save" @onclick="Save" disabled="@_saving">@(_saving ? "Saving…" : "Save")</button>
+      <button type="button" class="skc-reset" @onclick="ResetTab" disabled="@_saving">Reset this tab to default</button>
+    </div>
+    @if (_msg is not null) { <p class="@(_error ? "skc-err" : "skc-muted")">@_msg</p> }
+  }
+</section>
+
+@code {
+    static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new(System.Text.Json.JsonSerializerDefaults.Web);
+    static readonly (string Key, string Label)[] Tabs =
+        [("success", "Success"), ("failure", "Failure"), ("uptodate", "Up to date"), ("dashboard", "Dashboard")];
+
+    BotConfigService? Service => Services.GetService<BotConfigService>();
+
+    bool _loaded;
+    bool _saving;
+    bool _error;
+    bool _varsOpen;
+    string? _msg;
+    string _tab = "success";
+
+    string _dashboardChannelId = "";
+    string _githubFeedThreadId = "";
+    string _deployThreadId = "";
+    string _webhookUrl = "";
+
+    EventForm _success = new();
+    EventForm _failure = new();
+    EventForm _uptodate = new();
+    EmbedForm _dashboard = new();
+
+    IReadOnlyList<VariableDoc> _deployVars = [];
+    IReadOnlyList<VariableDoc> _dashVars = [];
+
+    EventForm Current => _tab switch { "failure" => _failure, "uptodate" => _uptodate, _ => _success };
+    IReadOnlyList<VariableDoc> ActiveVariables => _tab == "dashboard" ? _dashVars : _deployVars;
+
+    protected override async Task OnInitializedAsync() {
+        if (Service is null) return;
+        var v = await Service.GetAsync(CancellationToken.None);
+        _dashboardChannelId = v.DashboardChannelId ?? "";
+        _githubFeedThreadId = v.GithubFeedThreadId ?? "";
+        _deployThreadId = v.DeployNotificationsThreadId ?? "";
+        _webhookUrl = v.GithubWebhookUrl ?? "";
+        _deployVars = v.Variables;
+        _dashVars = v.DashboardVariables;
+        _success = SeedEvent(v.SuccessMessageJson, v.SuccessEmbedJson, v.DefaultSuccessMessage);
+        _failure = SeedEvent(v.FailureMessageJson, v.FailureEmbedJson, v.DefaultFailureMessage);
+        _uptodate = SeedEvent(v.UptodateMessageJson, v.UptodateEmbedJson, v.DefaultUptodateMessage);
+        _dashboard = EmbedForm.From(MessageSpecs.ParseEmbed(v.DashboardEmbedJson) ?? v.DefaultDashboard);
+        _loaded = true;
+    }
+
+    static EventForm SeedEvent(string? messageJson, string? embedJson, MessageSpec fallback) {
+        var spec = MessageSpecs.ParseMessage(messageJson)
+            ?? (MessageSpecs.ParseEmbed(embedJson) is { } e ? MessageSpec.FromEmbed(e) : fallback);
+        return EventForm.From(spec);
+    }
+
+    async Task Save() {
+        if (Service is null) return;
+        _saving = true; _msg = null; _error = false;
+        try {
+            var input = new BotConfigInput(
+                _dashboardChannelId.Trim(), _githubFeedThreadId.Trim(), _deployThreadId.Trim(),
+                SuccessEmbedJson: null, FailureEmbedJson: null, UptodateEmbedJson: null,
+                DashboardEmbedJson: Serialize(_dashboard.ToSpec()),
+                SuccessMessageJson: Serialize(_success.ToSpec()),
+                FailureMessageJson: Serialize(_failure.ToSpec()),
+                UptodateMessageJson: Serialize(_uptodate.ToSpec()));
+            var result = await Service.SaveAsync(input, CancellationToken.None);
+            if (result.Ok) {
+                _webhookUrl = result.GithubWebhookUrl ?? _webhookUrl;
+                _msg = "Saved.";
+            } else {
+                _error = true; _msg = result.Error;
+            }
+        } catch (Exception ex) {
+            _error = true; _msg = ex.Message;
+        } finally {
+            _saving = false;
+        }
+    }
+
+    void ResetTab() {
+        if (Service is null) return;
+        switch (_tab) {
+            case "failure": _failure = EventForm.From(Service.DefaultFailureMessage); break;
+            case "uptodate": _uptodate = EventForm.From(Service.DefaultUptodateMessage); break;
+            case "dashboard": _dashboard = EmbedForm.From(Service.DefaultDashboard); break;
+            default: _success = EventForm.From(Service.DefaultSuccessMessage); break;
+        }
+    }
+
+    static string Serialize(MessageSpec spec) => System.Text.Json.JsonSerializer.Serialize(spec, JsonOpts);
+    static string Serialize(EmbedSpec spec) => System.Text.Json.JsonSerializer.Serialize(spec, JsonOpts);
+
+    static string ColorValue(string hex) {
+        var h = (hex ?? "").TrimStart('#');
+        return h.Length == 6 && uint.TryParse(h, System.Globalization.NumberStyles.HexNumber, null, out _)
+            ? $"#{h.ToUpperInvariant()}" : "#5865F2";
+    }
+    static string HexOf(ChangeEventArgs e) => (e.Value?.ToString() ?? "").TrimStart('#').ToUpperInvariant();
+
+    RenderFragment EmbedEditor(EmbedForm e) => @<div class="skc-card">
+        <div class="skc-row">
+            <div class="skc-color">
+                <span>Color</span>
+                <input type="color" value="@ColorValue(e.ColorHex)" @onchange="ev => e.ColorHex = HexOf(ev)" />
+                <input class="skc-hex" @bind="e.ColorHex" placeholder="RRGGBB" />
+            </div>
+            <label class="skc-grow">Title <input @bind="e.Title" /></label>
+            <label>Title URL <input @bind="e.TitleUrl" /></label>
+        </div>
+        <div class="skc-row">
+            <label class="skc-grow">Author name <input @bind="e.AuthorName" /></label>
+            <label class="skc-grow">Author icon URL <input @bind="e.AuthorIconUrl" /></label>
+        </div>
+        <label>Description <textarea rows="2" @bind="e.Description"></textarea></label>
+        <div class="skc-subhead">
+            <span>Fields (@e.Fields.Count / 25)</span>
+            <button type="button" class="skc-mini" @onclick="() => AddField(e)">Add field</button>
+        </div>
+        @foreach (var f in e.Fields) {
+            <div class="skc-fieldrow">
+                <label class="skc-grow">Name <input @bind="f.Name" /></label>
+                <label class="skc-grow">Value <input @bind="f.Value" /></label>
+                <label class="skc-chk"><input type="checkbox" @bind="f.Inline" /> Inline</label>
+                <button type="button" class="skc-mini skc-danger" @onclick="() => e.Fields.Remove(f)">×</button>
+            </div>
+        }
+        <div class="skc-row">
+            <label class="skc-grow">Footer <input @bind="e.FooterText" /></label>
+            <label class="skc-chk"><input type="checkbox" @bind="e.Timestamp" /> Timestamp</label>
+        </div>
+    </div>;
+
+    RenderFragment ComponentEditor(ComponentForm c) => @<div class="skc-card">
+        <div class="skc-color">
+            <span>Accent</span>
+            <input type="color" value="@ColorValue(c.AccentHex)" @onchange="ev => c.AccentHex = HexOf(ev)" />
+            <input class="skc-hex" @bind="c.AccentHex" placeholder="RRGGBB" />
+        </div>
+        <div class="skc-subhead">
+            <span>Blocks (@c.Blocks.Count / 10)</span>
+            <button type="button" class="skc-mini" @onclick="() => AddText(c)" disabled="@(c.Blocks.Count >= 10)">Add text</button>
+            <button type="button" class="skc-mini" @onclick="() => AddSeparator(c)" disabled="@(c.Blocks.Count >= 10)">Add separator</button>
+        </div>
+        @foreach (var b in c.Blocks) {
+            <div class="skc-fieldrow">
+                @if (b.Kind == "separator") {
+                    <span class="skc-grow skc-muted">— separator —</span>
+                } else {
+                    <label class="skc-grow">Text (markdown, use {{ pings }} to ping) <input @bind="b.Text" /></label>
+                }
+                <button type="button" class="skc-mini skc-danger" @onclick="() => c.Blocks.Remove(b)">×</button>
+            </div>
+        }
+    </div>;
+
+    RenderFragment MentionEditor(MentionForm m) => @<div class="skc-card">
+        <div class="skc-subhead"><span>Mentions (allowed to ping)</span></div>
+        <div class="skc-row">
+            <label class="skc-grow">User IDs (comma-separated) <input @bind="m.Users" /></label>
+            <label class="skc-grow">Role IDs (comma-separated) <input @bind="m.Roles" /></label>
+            <label class="skc-chk"><input type="checkbox" @bind="m.Everyone" /> @@everyone</label>
+        </div>
+        <p class="skc-muted">Pings only fire on the Components path. Place <code>{{ pings }}</code> in a text block.</p>
+    </div>;
+
+    sealed class FieldForm {
+        public string Name { get; set; } = "";
+        public string Value { get; set; } = "";
+        public bool Inline { get; set; }
+    }
+
+    sealed class BlockForm {
+        public string Kind { get; set; } = "text";
+        public string Text { get; set; } = "";
+    }
+
+    sealed class MentionForm {
+        public string Users { get; set; } = "";
+        public string Roles { get; set; } = "";
+        public bool Everyone { get; set; }
+
+        public static MentionForm From(MentionSpec? s) => s is null ? new MentionForm() : new MentionForm {
+            Users = string.Join(", ", s.Users),
+            Roles = string.Join(", ", s.Roles),
+            Everyone = s.Everyone,
+        };
+
+        public MentionSpec ToSpec() => new(Split(Users), Split(Roles), Everyone);
+
+        static IReadOnlyList<string> Split(string csv) =>
+            csv.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
+
+    sealed class ComponentForm {
+        public string AccentHex { get; set; } = "";
+        public List<BlockForm> Blocks { get; set; } = [];
+
+        public static ComponentForm From(ComponentSpec? s) {
+            if (s is null) return new ComponentForm();
+            return new ComponentForm {
+                AccentHex = s.AccentColor is { } c ? c.ToString("X6") : "",
+                Blocks = s.Blocks.Select(b => new BlockForm { Kind = b.Kind, Text = b.Text ?? "" }).ToList(),
+            };
+        }
+
+        public ComponentSpec ToSpec() => new(
+            ParseColor(AccentHex),
+            Blocks.Select(b => b.Kind == "separator"
+                ? new ComponentBlock("separator", null, null, true)
+                : new ComponentBlock("text", b.Text, null, true)).ToList());
+    }
+
+    sealed class EmbedForm {
+        public string ColorHex { get; set; } = "";
+        public string AuthorName { get; set; } = "";
+        public string AuthorUrl { get; set; } = "";
+        public string AuthorIconUrl { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string TitleUrl { get; set; } = "";
+        public string Description { get; set; } = "";
+        public List<FieldForm> Fields { get; set; } = [];
+        public string ImageUrl { get; set; } = "";
+        public string ThumbnailUrl { get; set; } = "";
+        public string FooterText { get; set; } = "";
+        public string FooterIconUrl { get; set; } = "";
+        public bool Timestamp { get; set; }
+
+        public static EmbedForm From(EmbedSpec s) => new() {
+            ColorHex = s.Color is { } c ? c.ToString("X6") : "",
+            AuthorName = s.AuthorName ?? "",
+            AuthorUrl = s.AuthorUrl ?? "",
+            AuthorIconUrl = s.AuthorIconUrl ?? "",
+            Title = s.Title ?? "",
+            TitleUrl = s.TitleUrl ?? "",
+            Description = s.Description ?? "",
+            Fields = (s.Fields ?? []).Select(x => new FieldForm { Name = x.Name, Value = x.Value, Inline = x.Inline }).ToList(),
+            ImageUrl = s.ImageUrl ?? "",
+            ThumbnailUrl = s.ThumbnailUrl ?? "",
+            FooterText = s.FooterText ?? "",
+            FooterIconUrl = s.FooterIconUrl ?? "",
+            Timestamp = s.Timestamp,
+        };
+
+        public EmbedSpec ToSpec() => new(
+            ParseColor(ColorHex),
+            NullIfBlank(AuthorName), NullIfBlank(AuthorUrl), NullIfBlank(AuthorIconUrl),
+            NullIfBlank(Title), NullIfBlank(TitleUrl), NullIfBlank(Description),
+            Fields.Where(x => !string.IsNullOrWhiteSpace(x.Name) || !string.IsNullOrWhiteSpace(x.Value))
+                  .Select(x => new EmbedFieldSpec(x.Name, x.Value, x.Inline)).ToList(),
+            NullIfBlank(ImageUrl), NullIfBlank(ThumbnailUrl),
+            NullIfBlank(FooterText), NullIfBlank(FooterIconUrl),
+            Timestamp);
+    }
+
+    sealed class EventForm {
+        public MessageKind Kind { get; set; } = MessageKind.Embed;
+        public EmbedForm Embed { get; set; } = new();
+        public ComponentForm Components { get; set; } = new();
+        public MentionForm Mentions { get; set; } = new();
+
+        public static EventForm From(MessageSpec s) => new() {
+            Kind = s.Kind,
+            Embed = s.Embed is { } e ? EmbedForm.From(e) : new EmbedForm(),
+            Components = ComponentForm.From(s.Components),
+            Mentions = MentionForm.From(s.Mentions),
+        };
+
+        public MessageSpec ToSpec() => Kind == MessageKind.Components
+            ? new MessageSpec(MessageKind.Components, null, Components.ToSpec(), Mentions.ToSpec())
+            : new MessageSpec(MessageKind.Embed, Embed.ToSpec(), null, Mentions.ToSpec());
+    }
+
+    static uint? ParseColor(string hex) =>
+        uint.TryParse((hex ?? "").TrimStart('#'), System.Globalization.NumberStyles.HexNumber, null, out var v) ? v : null;
+
+    static string? NullIfBlank(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
+
+    static void AddField(EmbedForm e) { if (e.Fields.Count < 25) e.Fields.Add(new FieldForm()); }
+    static void AddText(ComponentForm c) { if (c.Blocks.Count < 10) c.Blocks.Add(new BlockForm()); }
+    static void AddSeparator(ComponentForm c) { if (c.Blocks.Count < 10) c.Blocks.Add(new BlockForm { Kind = "separator" }); }
+}

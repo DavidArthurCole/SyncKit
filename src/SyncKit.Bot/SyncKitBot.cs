@@ -130,7 +130,7 @@ public sealed class SyncKitBot : IAsyncDisposable {
 
         var store = new ChannelStateStore(dataSource);
         _stateStore = store;
-        _channelHub = new ChannelHub(guild, channelId, _cfg.Name, store);
+        _channelHub = new ChannelHub(guild, channelId, _cfg.Name, store, configStore);
 
         if (!string.IsNullOrEmpty(configOverride?.GithubFeedThreadId) &&
             ulong.TryParse(configOverride.GithubFeedThreadId, out var githubFeedThreadId))

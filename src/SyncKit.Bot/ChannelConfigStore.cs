@@ -10,7 +10,11 @@ public sealed record ChannelConfig(
     string? DeployNotificationsThreadId,
     string? SuccessEmbedJson,
     string? FailureEmbedJson,
-    string? UptodateEmbedJson);
+    string? UptodateEmbedJson,
+    string? DashboardEmbedJson,
+    string? SuccessMessageJson = null,
+    string? FailureMessageJson = null,
+    string? UptodateMessageJson = null);
 
 // Raw Npgsql over bot_channel_config, matching ChannelStateStore's shape. Null columns mean
 // "no override" - callers fall back to BotConfig/hardcoded defaults.
@@ -21,7 +25,8 @@ public sealed class ChannelConfigStore(NpgsqlDataSource dataSource) {
             """
             SELECT guild_id, app_name, dashboard_channel_id, github_feed_thread_id,
                    deploy_notifications_thread_id, success_embed_json, failure_embed_json,
-                   uptodate_embed_json
+                   uptodate_embed_json, dashboard_embed_json,
+                   success_message_json, failure_message_json, uptodate_message_json
             FROM bot_channel_config WHERE guild_id = $1 AND app_name = $2
             """, conn);
         cmd.Parameters.AddWithValue(guildId);
@@ -31,18 +36,16 @@ public sealed class ChannelConfigStore(NpgsqlDataSource dataSource) {
         return Read(reader);
     }
 
-    public async Task UpsertAsync(
-        string guildId, string appName, string? dashboardChannelId, string? githubFeedThreadId,
-        string? deployNotificationsThreadId, string? successEmbedJson, string? failureEmbedJson,
-        string? uptodateEmbedJson, CancellationToken ct) {
+    public async Task UpsertAsync(ChannelConfig config, CancellationToken ct) {
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand(
             """
             INSERT INTO bot_channel_config
                 (guild_id, app_name, dashboard_channel_id, github_feed_thread_id,
                  deploy_notifications_thread_id, success_embed_json, failure_embed_json,
-                 uptodate_embed_json, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+                 uptodate_embed_json, dashboard_embed_json,
+                 success_message_json, failure_message_json, uptodate_message_json, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now())
             ON CONFLICT (guild_id, app_name) DO UPDATE SET
                 dashboard_channel_id = EXCLUDED.dashboard_channel_id,
                 github_feed_thread_id = EXCLUDED.github_feed_thread_id,
@@ -50,16 +53,24 @@ public sealed class ChannelConfigStore(NpgsqlDataSource dataSource) {
                 success_embed_json = EXCLUDED.success_embed_json,
                 failure_embed_json = EXCLUDED.failure_embed_json,
                 uptodate_embed_json = EXCLUDED.uptodate_embed_json,
+                dashboard_embed_json = EXCLUDED.dashboard_embed_json,
+                success_message_json = EXCLUDED.success_message_json,
+                failure_message_json = EXCLUDED.failure_message_json,
+                uptodate_message_json = EXCLUDED.uptodate_message_json,
                 updated_at = now()
             """, conn);
-        cmd.Parameters.AddWithValue(guildId);
-        cmd.Parameters.AddWithValue(appName);
-        cmd.Parameters.AddWithValue((object?)dashboardChannelId ?? DBNull.Value);
-        cmd.Parameters.AddWithValue((object?)githubFeedThreadId ?? DBNull.Value);
-        cmd.Parameters.AddWithValue((object?)deployNotificationsThreadId ?? DBNull.Value);
-        cmd.Parameters.AddWithValue((object?)successEmbedJson ?? DBNull.Value);
-        cmd.Parameters.AddWithValue((object?)failureEmbedJson ?? DBNull.Value);
-        cmd.Parameters.AddWithValue((object?)uptodateEmbedJson ?? DBNull.Value);
+        cmd.Parameters.AddWithValue(config.GuildId);
+        cmd.Parameters.AddWithValue(config.AppName);
+        cmd.Parameters.AddWithValue((object?)config.DashboardChannelId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue((object?)config.GithubFeedThreadId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue((object?)config.DeployNotificationsThreadId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue((object?)config.SuccessEmbedJson ?? DBNull.Value);
+        cmd.Parameters.AddWithValue((object?)config.FailureEmbedJson ?? DBNull.Value);
+        cmd.Parameters.AddWithValue((object?)config.UptodateEmbedJson ?? DBNull.Value);
+        cmd.Parameters.AddWithValue((object?)config.DashboardEmbedJson ?? DBNull.Value);
+        cmd.Parameters.AddWithValue((object?)config.SuccessMessageJson ?? DBNull.Value);
+        cmd.Parameters.AddWithValue((object?)config.FailureMessageJson ?? DBNull.Value);
+        cmd.Parameters.AddWithValue((object?)config.UptodateMessageJson ?? DBNull.Value);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
@@ -70,5 +81,9 @@ public sealed class ChannelConfigStore(NpgsqlDataSource dataSource) {
         reader.IsDBNull(4) ? null : reader.GetString(4),
         reader.IsDBNull(5) ? null : reader.GetString(5),
         reader.IsDBNull(6) ? null : reader.GetString(6),
-        reader.IsDBNull(7) ? null : reader.GetString(7));
+        reader.IsDBNull(7) ? null : reader.GetString(7),
+        reader.IsDBNull(8) ? null : reader.GetString(8),
+        reader.IsDBNull(9) ? null : reader.GetString(9),
+        reader.IsDBNull(10) ? null : reader.GetString(10),
+        reader.IsDBNull(11) ? null : reader.GetString(11));
 }

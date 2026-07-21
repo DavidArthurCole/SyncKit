@@ -1,5 +1,4 @@
 using Discord;
-using SyncKit.Contract;
 
 namespace SyncKit.Bot;
 
@@ -38,23 +37,6 @@ public static class DefaultEmbeds {
             .AddField("Built", string.IsNullOrEmpty(cfg.Build.Date) ? "unknown" : cfg.Build.Date, inline: true)
             .Build();
 
-    public static Embed Dashboard(DashboardSnapshot snapshot) {
-        var builder = new EmbedBuilder()
-            .WithTitle(snapshot.AppName)
-            .WithColor(new Color(0x5865F2))
-            .AddField("Version", string.IsNullOrEmpty(snapshot.Version) ? "unknown" : snapshot.Version, inline: true)
-            .AddField("Status", string.IsNullOrEmpty(snapshot.DeployStatus) ? "unknown" : snapshot.DeployStatus, inline: true)
-            .AddField("Up since", $"<t:{snapshot.UptimeSince.ToUnixTimeSeconds()}:R>", inline: true);
-
-        if (!string.IsNullOrEmpty(snapshot.BuildHash))
-            builder.AddField("Build", $"`{snapshot.BuildHash}`", inline: true);
-        if (!string.IsNullOrEmpty(snapshot.RepoUrl))
-            builder.AddField("Repo", snapshot.RepoUrl, inline: true);
-        foreach (var (key, value) in snapshot.ExtraFields)
-            builder.AddField(key, value, inline: true);
-
-        return builder.WithFooter("Updated").WithCurrentTimestamp().Build();
-    }
 }
 
 // Tier-2 re-skin: overrides Color/Title on a SyncKit default embed and appends ExtraFields

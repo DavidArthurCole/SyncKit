@@ -48,7 +48,7 @@ public class EmbedsTests {
     }
 
     [Fact]
-    public void Dashboard_RendersCoreFields() {
+    public void DashboardDefault_RendersCoreFields() {
         var snapshot = new DashboardSnapshot {
             AppName = "EggLedger",
             Version = "v1.2.3",
@@ -56,27 +56,44 @@ public class EmbedsTests {
             DeployStatus = "healthy",
             UptimeSince = DateTimeOffset.UtcNow,
             RepoUrl = "https://github.com/x/y",
-            ExtraFields = new Dictionary<string, string> { ["Region"] = "us-east" },
         };
 
-        var e = DefaultEmbeds.Dashboard(snapshot);
+        var e = EmbedRenderer.Render(DashboardEmbedDefaults.Default, DashboardVars.Build(snapshot));
 
         Assert.Equal("EggLedger", e.Title);
         Assert.Contains(e.Fields, f => f.Name == "Version" && f.Value.ToString() == "v1.2.3");
         Assert.Contains(e.Fields, f => f.Name == "Status" && f.Value.ToString() == "healthy");
         Assert.Contains(e.Fields, f => f.Name == "Build" && f.Value.ToString()!.Contains("abc1234"));
-        Assert.Contains(e.Fields, f => f.Name == "Region" && f.Value.ToString() == "us-east");
+        Assert.Contains(e.Fields, f => f.Name == "Repo" && f.Value.ToString()!.Contains("github.com"));
     }
 
     [Fact]
-    public void Dashboard_MissingOptionalFields_OmitsThem() {
+    public void DashboardDefault_MissingOptionalFields_OmitsThem() {
         var snapshot = new DashboardSnapshot { AppName = "EggLedger", UptimeSince = DateTimeOffset.UtcNow };
 
-        var e = DefaultEmbeds.Dashboard(snapshot);
+        var e = EmbedRenderer.Render(DashboardEmbedDefaults.Default, DashboardVars.Build(snapshot));
 
+        Assert.Equal("EggLedger", e.Title);
         Assert.DoesNotContain(e.Fields, f => f.Name == "Build");
         Assert.DoesNotContain(e.Fields, f => f.Name == "Repo");
-        Assert.Contains(e.Fields, f => f.Name == "Version" && f.Value.ToString() == "unknown");
+        Assert.DoesNotContain(e.Fields, f => f.Name == "Version");
+    }
+
+    [Fact]
+    public void DashboardCustomSpec_TemplatesExtraFields() {
+        var snapshot = new DashboardSnapshot {
+            AppName = "EGI",
+            UptimeSince = DateTimeOffset.UtcNow,
+            ExtraFields = new Dictionary<string, string> { ["Mode"] = "Hosted" },
+        };
+        var spec = new EmbedSpec(
+            null, null, null, null, "{{ app_name }}", null, null,
+            new List<EmbedFieldSpec> { new("Mode", "{{ extra.Mode }}", true) },
+            null, null, null, null, false);
+
+        var e = EmbedRenderer.Render(spec, DashboardVars.Build(snapshot));
+
+        Assert.Contains(e.Fields, f => f.Name == "Mode" && f.Value.ToString() == "Hosted");
     }
 
     [Fact]
