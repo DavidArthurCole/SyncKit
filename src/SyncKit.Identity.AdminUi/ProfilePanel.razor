@@ -7,11 +7,16 @@
     <p class="skp-muted">Loading...</p>
   } else {
     var avatarFragment = (AvatarTemplate ?? DefaultAvatarTemplate)(new ProfileAvatarContext(_profile.Avatar, _avatarError, EventCallback.Factory.Create<InputFileChangeEventArgs>(this, OnFileSelected)));
-    var identitiesFragment = (IdentitiesTemplate ?? DefaultIdentitiesTemplate)(BuildIdentitiesContext());
-    var linkRowFragment = (LinkRowTemplate ?? DefaultLinkRowTemplate)(BuildLinkRowContext());
     @avatarFragment
-    @identitiesFragment
-    @linkRowFragment
+    if (ProvidersTemplate is not null) {
+      var providersFragment = ProvidersTemplate(BuildProvidersContext());
+      @providersFragment
+    } else {
+      var identitiesFragment = (IdentitiesTemplate ?? DefaultIdentitiesTemplate)(BuildIdentitiesContext());
+      var linkRowFragment = (LinkRowTemplate ?? DefaultLinkRowTemplate)(BuildLinkRowContext());
+      @identitiesFragment
+      @linkRowFragment
+    }
   }
 </section>
 
@@ -22,6 +27,7 @@
     [Parameter] public RenderFragment<ProfileAvatarContext>? AvatarTemplate { get; set; }
     [Parameter] public RenderFragment<ProfileIdentitiesContext>? IdentitiesTemplate { get; set; }
     [Parameter] public RenderFragment<ProfileLinkRowContext>? LinkRowTemplate { get; set; }
+    [Parameter] public RenderFragment<ProfileProvidersContext>? ProvidersTemplate { get; set; }
 
     private static readonly string[] KnownProviders = ["discord", "google", "microsoft", "github"];
 
@@ -70,6 +76,23 @@
             EventCallback.Factory.Create(this, () => UnlinkAsync(identity))
         )).ToList();
         return new ProfileIdentitiesContext(items, _banner);
+    }
+
+    private ProfileProvidersContext BuildProvidersContext() {
+        var items = KnownProviders.Select(provider => {
+            var identity = _profile!.Identities.FirstOrDefault(i => i.Provider == provider);
+            var linked = identity is not null;
+            return new ProfileProviderItem(
+                provider,
+                linked,
+                Identity.StartLinkUrl(provider, ReturnUrl),
+                identity,
+                linked && _profile.Identities.Count > 1,
+                identity is not null ? EventCallback.Factory.Create(this, () => SelectAvatarAsync(identity)) : default,
+                identity is not null ? EventCallback.Factory.Create(this, () => UnlinkAsync(identity)) : default
+            );
+        }).ToList();
+        return new ProfileProvidersContext(items, _banner);
     }
 
     private ProfileLinkRowContext BuildLinkRowContext() {

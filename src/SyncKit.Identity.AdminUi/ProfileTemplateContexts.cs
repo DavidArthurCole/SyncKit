@@ -13,3 +13,14 @@ public sealed record ProfileIdentitiesContext(IReadOnlyList<ProfileIdentityItem>
 public sealed record ProfileLinkItem(string Provider, bool Linked, string LinkUrl);
 
 public sealed record ProfileLinkRowContext(IReadOnlyList<ProfileLinkItem> Items);
+
+public sealed record ProfileProviderItem(
+    string Provider,
+    bool Linked,
+    string LinkUrl,
+    ProfileIdentityResponse? Identity,
+    bool CanUnlink,
+    EventCallback OnSelectAvatar,
+    EventCallback OnUnlink);
+
+public sealed record ProfileProvidersContext(IReadOnlyList<ProfileProviderItem> Items, string? Banner);
