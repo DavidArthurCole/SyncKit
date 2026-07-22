@@ -10,11 +10,16 @@ public static class DeployVars {
             ["already_up_to_date"] = res.AlreadyUpToDate,
             ["tail"] = res.Tail ?? "",
             ["from_hash"] = res.FromHash ?? "",
+            ["from_hash_short"] = ShortHash(res.FromHash),
             ["to_hash"] = res.ToHash ?? "",
+            ["to_hash_short"] = ShortHash(res.ToHash),
             ["from_url"] = res.FromUrl ?? "",
             ["to_url"] = res.ToUrl ?? "",
             ["app_name"] = appName,
         };
+
+    internal static string ShortHash(string? hash) =>
+        hash is null ? "" : hash.Length <= 7 ? hash : hash[..7];
 }
 
 public static class DashboardVars {
@@ -26,6 +31,7 @@ public static class DashboardVars {
             ["app_name"] = snapshot.AppName,
             ["version"] = snapshot.Version,
             ["build_hash"] = snapshot.BuildHash,
+            ["build_hash_short"] = DeployVars.ShortHash(snapshot.BuildHash),
             ["deploy_status"] = snapshot.DeployStatus,
             ["up_since_unix"] = snapshot.UptimeSince.ToUnixTimeSeconds(),
             ["repo_url"] = snapshot.RepoUrl,

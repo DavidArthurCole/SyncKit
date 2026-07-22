@@ -9,8 +9,8 @@ public static class DeployEmbedDefaults {
         Title: "Updated", TitleUrl: null,
         Description: null,
         Fields: new List<EmbedFieldSpec> {
-            new("From", "[`{{ from_hash }}`]({{ from_url }})", true),
-            new("To", "[`{{ to_hash }}`]({{ to_url }})", true),
+            new("From", "[`{{ from_hash_short }}`]({{ from_url }})", true),
+            new("To", "[`{{ to_hash_short }}`]({{ to_url }})", true),
         },
         ImageUrl: null, ThumbnailUrl: null,
         FooterText: null, FooterIconUrl: null,
@@ -36,20 +36,22 @@ public static class DeployEmbedDefaults {
         Title: "Already up to date.", TitleUrl: null,
         Description: null,
         Fields: new List<EmbedFieldSpec> {
-            new("Current", "[`{{ to_hash }}`]({{ to_url }})", true),
+            new("Current", "[`{{ to_hash_short }}`]({{ to_url }})", true),
         },
         ImageUrl: null, ThumbnailUrl: null,
         FooterText: null, FooterIconUrl: null,
         Timestamp: false);
 
     public static readonly IReadOnlyList<(string Name, string Desc)> Variables = new[] {
-        ("ok", "true when the deploy succeeded"),
-        ("already_up_to_date", "true when no update was needed"),
-        ("tail", "tail of the deploy log output"),
-        ("from_hash", "commit hash before the deploy"),
-        ("to_hash", "commit hash after the deploy"),
-        ("from_url", "commit URL before the deploy"),
-        ("to_url", "commit URL after the deploy"),
-        ("app_name", "name of the deployed app"),
+        ("ok", "deploy succeeded"),
+        ("already_up_to_date", "no update needed"),
+        ("tail", "deploy log tail"),
+        ("from_hash", "full commit hash before"),
+        ("from_hash_short", "7-char commit hash before"),
+        ("to_hash", "full commit hash after"),
+        ("to_hash_short", "7-char commit hash after"),
+        ("from_url", "commit URL before"),
+        ("to_url", "commit URL after"),
+        ("app_name", "app name"),
     };
 }

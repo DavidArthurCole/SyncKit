@@ -73,6 +73,8 @@ public sealed class IdentityApiClient(HttpClient http) {
     public string StartLinkUrl(string provider, string returnUrl) =>
         $"/profile/link/{provider}/start?returnUrl={Uri.EscapeDataString(returnUrl)}";
 
+    public string IconUrl(string provider) => $"/login/icons/{provider}";
+
     public async Task<bool> UnlinkIdentityAsync(string sessionToken, string provider, string subject, CancellationToken ct) {
         using var req = new HttpRequestMessage(HttpMethod.Post, $"/profile/identities/{provider}/{subject}/unlink");
         req.Headers.Add("X-SyncKit-Session", sessionToken);
