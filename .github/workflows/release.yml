@@ -9,82 +9,43 @@ permissions:
   packages: write
 
 jobs:
-  # Pack the SyncKit.* libraries and publish them to GitHub Packages. The Agent host is
-  # IsPackable=false, so only the consumable libs ship. Version comes from Directory.Build.props;
-  # the tag is expected to match (e.g. tag v0.2.0-preview.1 for Version 0.2.0-preview.1).
+  # Pack the SyncKit.* libraries and publish them to GitHub Packages. The Agent,
+  # Identity.Host and Identity.Tools projects are IsPackable=false, so only the
+  # consumable libs ship. Version comes from the pushed tag (e.g. tag v0.2.0-preview.1).
   pack:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "10.0.x"
-
-      - uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
-          restore-keys: ${{ runner.os }}-nuget-
-
-      - run: dotnet test SyncKit.slnx -c Release
-
-      - name: Pack libraries
-        run: dotnet pack SyncKit.slnx -c Release -o nupkgs
-
-      # GITHUB_TOKEN is scoped to this repo's packages; no PAT needed.
-      - name: Push to GitHub Packages
-        run: |
-          dotnet nuget push "nupkgs/*.nupkg" \
-            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
-            --api-key "${{ secrets.GITHUB_TOKEN }}" \
-            --skip-duplicate
+    uses: DavidArthurCole/EggBasket/.github/workflows/nuget-publish.yml@master
+    with:
+      dotnet-version: "10.0.x"
+      pack-targets: |
+        src/SyncKit.Contract/SyncKit.Contract.csproj
+        src/SyncKit.Db/SyncKit.Db.csproj
+        src/SyncKit.Auth/SyncKit.Auth.csproj
+        src/SyncKit.Bot/SyncKit.Bot.csproj
+        src/SyncKit.Bot.AdminUi/SyncKit.Bot.AdminUi.csproj
+        src/SyncKit.Core/SyncKit.Core.csproj
+        src/SyncKit.Config/SyncKit.Config.csproj
+        src/SyncKit.Identity/SyncKit.Identity.csproj
+        src/SyncKit.Identity.Client/SyncKit.Identity.Client.csproj
+        src/SyncKit.Identity.AdminUi/SyncKit.Identity.AdminUi.csproj
+        src/SyncKit.Metrics/SyncKit.Metrics.csproj
+        src/SyncKit.Metrics.AdminUi/SyncKit.Metrics.AdminUi.csproj
 
   # Build+push the identity host image. Context is repo root since the Dockerfile
   # needs the whole solution for its ProjectReferences.
   docker-identity-host:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    uses: DavidArthurCole/EggBasket/.github/workflows/docker-publish.yml@master
+    with:
+      image-suffix: "-identity"
+      context: .
+      dockerfile: src/SyncKit.Identity.Host/Dockerfile
+      cache-scope: identity-host
 
-      - uses: docker/setup-buildx-action@v3
-
-      # GITHUB_TOKEN is scoped to this repo's packages; no PAT needed.
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: src/SyncKit.Identity.Host/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/davidarthurcole/synckit-identity:${{ github.ref_name }}
-            ghcr.io/davidarthurcole/synckit-identity:latest
-
-  # Build+push the deploy-agent image. Same shape as docker-identity-host, context is repo root
-  # since the Dockerfile needs the whole solution for its ProjectReferences.
+  # Build+push the deploy-agent image. Same shape as docker-identity-host, context is
+  # repo root since the Dockerfile needs the whole solution for its ProjectReferences.
   docker-agent:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: src/SyncKit.Agent/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/davidarthurcole/synckit-agent:${{ github.ref_name }}
-            ghcr.io/davidarthurcole/synckit-agent:latest
+    uses: DavidArthurCole/EggBasket/.github/workflows/docker-publish.yml@master
+    with:
+      image-suffix: "-agent"
+      context: .
+      dockerfile: src/SyncKit.Agent/Dockerfile
+      cache-scope: agent

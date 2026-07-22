@@ -7,18 +7,7 @@ on:
 
 jobs:
   build-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "10.0.x"
-
-      - uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
-          restore-keys: ${{ runner.os }}-nuget-
-
-      - run: dotnet test SyncKit.slnx -c Release
+    uses: DavidArthurCole/EggBasket/.github/workflows/dotnet-ci.yml@master
+    with:
+      solution: SyncKit.slnx
+      dotnet-version: "10.0.x"
