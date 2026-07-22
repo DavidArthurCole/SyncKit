@@ -101,7 +101,7 @@ loginRoutes.MapGet("/go/{provider}", async (HttpContext ctx, string provider, OA
     return Results.Redirect(flowUrl);
 });
 
-loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, IdentityResolver resolver, LoginCodeStore codes) => {
+loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, IdentityResolver resolver, LoginCodeStore codes, UserQueries users) => {
     if (!loginWidgetEnabled) return Results.NotFound();
     var code = ctx.Request.Query["code"].ToString();
     var state = ctx.Request.Query["state"].ToString();
@@ -123,13 +123,14 @@ loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, 
         loginCode = await codes.IssueAsync(resolved.UserId, resolved.IsNew, ctx.RequestAborted);
         if (sessionOptions is not null) {
             var issuedAt = DateTimeOffset.UtcNow;
+            var user = await users.GetAsync(resolved.UserId, ctx.RequestAborted);
             SessionIssuer.IssueCookie(ctx.Response, sessionOptions, new SessionUser(
                 UserId: resolved.UserId.ToString(),
                 Sid: token.Sid,
                 Role: resolved.Role,
-                Name: token.Username,
-                Avatar: token.Avatar,
-                DiscordId: resolved.DiscordId),
+                Name: user?.Username ?? token.Username,
+                Avatar: user?.Avatar ?? token.Avatar,
+                DiscordId: user?.DiscordId ?? resolved.DiscordId),
                 issuedAt);
             if (!string.IsNullOrEmpty(token.IdToken))
                 ctx.Response.Cookies.Append(Program.IdHintCookie, token.IdToken, new CookieOptions {
