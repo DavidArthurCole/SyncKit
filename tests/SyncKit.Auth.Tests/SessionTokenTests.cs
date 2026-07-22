@@ -101,8 +101,11 @@ public class SessionTokenTests {
         var token = SessionToken.Issue(oldOptions, User(), Now);
 
         var rotated = new SessionCookieOptions {
-            SigningSecret = newSecret, PreviousSigningSecret = oldSecret,
-            Issuer = oldOptions.Issuer, Audience = oldOptions.Audience, Ttl = oldOptions.Ttl,
+            SigningSecret = newSecret,
+            PreviousSigningSecret = oldSecret,
+            Issuer = oldOptions.Issuer,
+            Audience = oldOptions.Audience,
+            Ttl = oldOptions.Ttl,
         };
 
         Assert.NotNull(SessionToken.Validate(rotated, token, Now));

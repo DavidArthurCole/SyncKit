@@ -63,19 +63,14 @@ public class AuthentikAspNetAuthTests {
         Assert.NotNull(ctx.Principal);
     }
 
-    private sealed class StubIdentityHandler(IdentityUserResponse? getResult, bool revoked) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-        {
-            if (request.Method == HttpMethod.Get && request.RequestUri!.AbsolutePath.EndsWith("/revoked"))
-            {
-                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
-                {
+    private sealed class StubIdentityHandler(IdentityUserResponse? getResult, bool revoked) : HttpMessageHandler {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) {
+            if (request.Method == HttpMethod.Get && request.RequestUri!.AbsolutePath.EndsWith("/revoked")) {
+                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) {
                     Content = System.Net.Http.Json.JsonContent.Create(revoked)
                 });
             }
-            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
-            {
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) {
                 Content = System.Net.Http.Json.JsonContent.Create(getResult)
             });
         }
@@ -85,8 +80,7 @@ public class AuthentikAspNetAuthTests {
         new(new HttpClient(new StubIdentityHandler(getResult, revoked)) { BaseAddress = new Uri("http://localhost:8090") });
 
     [Fact]
-    public async Task OnValidatePrincipalCheckRevoked_role_unchanged_does_not_replace_claim()
-    {
+    public async Task OnValidatePrincipalCheckRevoked_role_unchanged_does_not_replace_claim() {
         var userId = Guid.NewGuid();
         var identity = StubIdentityClient(new IdentityUserResponse { UserId = userId, Role = "contributor", Username = "alice" });
         var principal = new ClaimsPrincipal(new ClaimsIdentity(
@@ -101,8 +95,7 @@ public class AuthentikAspNetAuthTests {
     }
 
     [Fact]
-    public async Task OnValidatePrincipalCheckRevoked_role_changed_replaces_claim()
-    {
+    public async Task OnValidatePrincipalCheckRevoked_role_changed_replaces_claim() {
         var userId = Guid.NewGuid();
         var identity = StubIdentityClient(new IdentityUserResponse { UserId = userId, Role = "admin", Username = "alice" });
         var principal = new ClaimsPrincipal(new ClaimsIdentity(
@@ -117,8 +110,7 @@ public class AuthentikAspNetAuthTests {
     }
 
     [Fact]
-    public async Task OnValidatePrincipalCheckRevoked_no_user_id_claim_skips_role_refresh()
-    {
+    public async Task OnValidatePrincipalCheckRevoked_no_user_id_claim_skips_role_refresh() {
         var identity = StubIdentityClient(new IdentityUserResponse { UserId = Guid.NewGuid(), Role = "admin" });
         var principal = new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim("sid", "sid-1"), new Claim("role", "contributor")], "test_cookie"));
