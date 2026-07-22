@@ -96,4 +96,53 @@ public class IdentityResolverTests {
         var reResolved = await resolver.ResolveAsync("authentik", "merge-sub-1", null, "merged", null, CancellationToken.None);
         Assert.Equal(keep.UserId, reResolved.UserId);
     }
+
+    [Fact]
+    public async Task TryLinkAsync_UnclaimedIdentity_LinksToCurrentUser() {
+        if (string.IsNullOrEmpty(ConnString)) return;
+        await using var db = await MakeDbAsync();
+        var resolver = MakeResolver(db);
+
+        var owner = await resolver.ResolveAsync("discord", "link-owner-1", null, "owner", null, CancellationToken.None);
+        var outcome = await resolver.TryLinkAsync(owner.UserId, "authentik", "link-new-sub-1", null, "owner", null, CancellationToken.None);
+
+        Assert.True(outcome.Linked);
+        Assert.False(outcome.Conflict);
+        var relinked = await resolver.ResolveAsync("authentik", "link-new-sub-1", null, "owner", null, CancellationToken.None);
+        Assert.Equal(owner.UserId, relinked.UserId);
+    }
+
+    [Fact]
+    public async Task TryLinkAsync_AlreadyLinkedToCurrentUser_IsIdempotent() {
+        if (string.IsNullOrEmpty(ConnString)) return;
+        await using var db = await MakeDbAsync();
+        var resolver = MakeResolver(db);
+
+        var owner = await resolver.ResolveAsync("discord", "link-owner-2", null, "owner2", null, CancellationToken.None);
+        var first = await resolver.TryLinkAsync(owner.UserId, "authentik", "link-mine-sub-1", null, "owner2", null, CancellationToken.None);
+        var second = await resolver.TryLinkAsync(owner.UserId, "authentik", "link-mine-sub-1", null, "owner2", null, CancellationToken.None);
+
+        Assert.True(first.Linked);
+        Assert.True(second.Linked);
+        Assert.False(second.Conflict);
+    }
+
+    [Fact]
+    public async Task TryLinkAsync_ClaimedByDifferentUser_ReturnsConflictAndDoesNotMutate() {
+        if (string.IsNullOrEmpty(ConnString)) return;
+        await using var db = await MakeDbAsync();
+        var resolver = MakeResolver(db);
+
+        var other = await resolver.ResolveAsync("authentik", "link-taken-sub-1", null, "taken-owner", null, CancellationToken.None);
+        var requester = await resolver.ResolveAsync("discord", "link-requester-1", null, "requester", null, CancellationToken.None);
+
+        var outcome = await resolver.TryLinkAsync(requester.UserId, "authentik", "link-taken-sub-1", null, "requester", null, CancellationToken.None);
+
+        Assert.False(outcome.Linked);
+        Assert.True(outcome.Conflict);
+        Assert.Equal("taken-owner", outcome.ConflictUsername);
+
+        var stillOther = await resolver.ResolveAsync("authentik", "link-taken-sub-1", null, "taken-owner", null, CancellationToken.None);
+        Assert.Equal(other.UserId, stillOther.UserId);
+    }
 }

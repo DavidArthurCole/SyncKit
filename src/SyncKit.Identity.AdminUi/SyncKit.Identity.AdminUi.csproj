@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <Description>Shared Blazor profile-management panel: linked identities, self-service linking with conflict detection, avatar upload/select.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SyncKit.Contract\SyncKit.Contract.csproj" />
+    <ProjectReference Include="..\SyncKit.Identity.Client\SyncKit.Identity.Client.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,12 @@
+.skp-muted { opacity: 0.6; }
+.skp-error { color: #e05252; font-size: 0.85rem; margin: 0.25rem 0 0; }
+.skp-banner { font-size: 0.85rem; opacity: 0.8; margin: 0 0 0.5rem; }
+.skp-avatar-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+.skp-avatar { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; background: #23232a; }
+.skp-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.skp-table th, .skp-table td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid #3a3a44; }
+.skp-identity-cell { display: flex; align-items: center; gap: 0.4rem; }
+.skp-thumb { width: 20px; height: 20px; border-radius: 50%; }
+.skp-link-btn, .skp-unlink-btn, .skp-link-provider { font-size: 0.8rem; }
+.skp-unlink-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.skp-link-row { display: flex; gap: 0.5rem; margin-top: 1rem; }

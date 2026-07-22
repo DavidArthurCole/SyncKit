@@ -1,0 +1,102 @@
+@rendermode @(RenderMode.InteractiveServer)
+@inject IdentityApiClient Identity
+@implements IDisposable
+
+<section class="skp">
+  @if (_profile is null) {
+    <p class="skp-muted">Loading...</p>
+  } else {
+    <div class="skp-avatar-row">
+      <img class="skp-avatar" src="@(_profile.Avatar ?? "")" alt="Profile picture" />
+      <div class="skp-avatar-controls">
+        <InputFile OnChange="OnFileSelected" accept="image/png,image/jpeg,image/webp" />
+        @if (_avatarError is not null) {
+          <p class="skp-error">@_avatarError</p>
+        }
+      </div>
+    </div>
+
+    @if (_banner is not null) {
+      <p class="skp-banner">@_banner</p>
+    }
+
+    <table class="skp-table">
+      <thead><tr><th>Provider</th><th>Linked as</th><th>Linked</th><th></th></tr></thead>
+      <tbody>
+        @foreach (var identity in _profile.Identities) {
+          <tr>
+            <td>@identity.Provider</td>
+            <td class="skp-identity-cell">
+              @if (!string.IsNullOrEmpty(identity.Avatar)) {
+                <img class="skp-thumb" src="@identity.Avatar" alt="" />
+                <button type="button" class="skp-link-btn" @onclick="() => SelectAvatarAsync(identity)">Use this picture</button>
+              }
+              <span>@(identity.Username ?? identity.Subject)</span>
+            </td>
+            <td>@identity.LinkedAt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</td>
+            <td>
+              <button type="button" class="skp-unlink-btn" disabled="@(_profile.Identities.Count <= 1)"
+                      title="@(_profile.Identities.Count <= 1 ? "Cannot unlink the last identity" : "")"
+                      @onclick="() => UnlinkAsync(identity)">
+                Unlink
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <div class="skp-link-row">
+      @foreach (var provider in KnownProviders) {
+        <a class="skp-link-provider" href="@Identity.StartLinkUrl(provider, ReturnUrl)">Link @provider</a>
+      }
+    </div>
+  }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string SessionToken { get; set; } = "";
+    [Parameter, EditorRequired] public string ReturnUrl { get; set; } = "";
+
+    private static readonly string[] KnownProviders = ["discord", "google", "microsoft", "github"];
+
+    private ProfileResponse? _profile;
+    private string? _banner;
+    private string? _avatarError;
+
+    protected override async Task OnInitializedAsync() {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() {
+        _profile = await Identity.GetProfileAsync(SessionToken, CancellationToken.None);
+    }
+
+    private async Task UnlinkAsync(ProfileIdentityResponse identity) {
+        var ok = await Identity.UnlinkIdentityAsync(SessionToken, identity.Provider, identity.Subject, CancellationToken.None);
+        _banner = ok ? "Unlinked." : "Could not unlink that identity.";
+        await LoadAsync();
+    }
+
+    private async Task SelectAvatarAsync(ProfileIdentityResponse identity) {
+        var ok = await Identity.SelectAvatarAsync(SessionToken, identity.Provider, identity.Subject, CancellationToken.None);
+        _avatarError = ok ? null : "Could not use that picture.";
+        await LoadAsync();
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e) {
+        _avatarError = null;
+        var file = e.File;
+        if (file.Size > 2 * 1024 * 1024) {
+            _avatarError = "File too large (max 2 MB).";
+            return;
+        }
+        await using var stream = file.OpenReadStream(2 * 1024 * 1024);
+        var ok = await Identity.UploadAvatarAsync(SessionToken, stream, file.Name, file.ContentType, CancellationToken.None);
+        if (!ok) _avatarError = "Upload failed: unsupported file type or too large.";
+        await LoadAsync();
+    }
+
+    public void Dispose() {
+    }
+}

@@ -40,4 +40,30 @@ public class WireFormatTests {
         var json = JsonSerializer.Serialize(new VerifyInfo { Name = "EggLedger", Sha256 = "ab", Version = "v1", Date = "d" });
         Assert.Equal("{\"name\":\"EggLedger\",\"sha256\":\"ab\",\"version\":\"v1\",\"date\":\"d\"}", json);
     }
+
+    [Fact]
+    public void ProfileResponse_MatchesWireShape() {
+        var pr = new ProfileResponse {
+            UserId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            Username = "alice",
+            Avatar = "/avatars/11111111-1111-1111-1111-111111111111",
+            AvatarIsCustom = true,
+            Identities = [
+                new ProfileIdentityResponse { Provider = "authentik", Subject = "sub-1", Username = "alice", Avatar = "https://cdn/a.png", LinkedAt = DateTimeOffset.Parse("2026-07-22T00:00:00Z") },
+            ],
+        };
+        var json = System.Text.Json.JsonSerializer.Serialize(pr);
+        Assert.Equal(
+            "{\"userId\":\"11111111-1111-1111-1111-111111111111\",\"username\":\"alice\",\"avatar\":\"/avatars/11111111-1111-1111-1111-111111111111\",\"avatarIsCustom\":true,\"identities\":[{\"provider\":\"authentik\",\"subject\":\"sub-1\",\"username\":\"alice\",\"avatar\":\"https://cdn/a.png\",\"linkedAt\":\"2026-07-22T00:00:00+00:00\"}]}",
+            json);
+    }
+
+    [Fact]
+    public void LinkResultResponse_Conflict_MatchesWireShape() {
+        var lr = new LinkResultResponse { Linked = false, Conflict = true, ConflictUsername = "bob", ConflictCreatedAt = DateTimeOffset.Parse("2026-01-01T00:00:00Z") };
+        var json = System.Text.Json.JsonSerializer.Serialize(lr);
+        Assert.Equal(
+            "{\"linked\":false,\"conflict\":true,\"conflictUsername\":\"bob\",\"conflictCreatedAt\":\"2026-01-01T00:00:00+00:00\"}",
+            json);
+    }
 }

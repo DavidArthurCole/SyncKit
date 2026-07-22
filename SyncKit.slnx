@@ -9,6 +9,7 @@
     <Project Path="src/SyncKit.Core/SyncKit.Core.csproj" />
     <Project Path="src/SyncKit.Db/SyncKit.Db.csproj" />
     <Project Path="src/SyncKit.Identity/SyncKit.Identity.csproj" />
+    <Project Path="src/SyncKit.Identity.AdminUi/SyncKit.Identity.AdminUi.csproj" />
     <Project Path="src/SyncKit.Identity.Client/SyncKit.Identity.Client.csproj" />
     <Project Path="src/SyncKit.Identity.Host/SyncKit.Identity.Host.csproj" />
     <Project Path="src/SyncKit.Identity.Tools/SyncKit.Identity.Tools.csproj" />
@@ -21,7 +22,6 @@
     <Project Path="tests/SyncKit.Bot.Tests/SyncKit.Bot.Tests.csproj" />
     <Project Path="tests/SyncKit.Config.Tests/SyncKit.Config.Tests.csproj" />
     <Project Path="tests/SyncKit.Contract.Tests/SyncKit.Contract.Tests.csproj" />
-    <Project Path="tests/SyncKit.Core.Tests/SyncKit.Core.Tests.csproj" />
     <Project Path="tests/SyncKit.Db.Tests/SyncKit.Db.Tests.csproj" />
     <Project Path="tests/SyncKit.Identity.Tests/SyncKit.Identity.Tests.csproj" />
     <Project Path="tests/SyncKit.Identity.Client.Tests/SyncKit.Identity.Client.Tests.csproj" />

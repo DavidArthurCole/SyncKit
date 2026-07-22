@@ -25,6 +25,8 @@ var appConfigs = loginWidgetEnabled
     ? AppAuthConfigLoader.LoadFromDirectory(authentikAppsDir!, authentikAuthority!)
     : [];
 var sessionOptions = SessionCookieOptions.FromEnvironment();
+var avatarStorageDir = Environment.GetEnvironmentVariable("AVATAR_STORAGE_DIR");
+var profileEnabled = loginWidgetEnabled && sessionOptions is not null && !string.IsNullOrEmpty(avatarStorageDir);
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls($"http://*:{port}");
@@ -35,6 +37,7 @@ builder.Services.AddSingleton(AdminAllowlist.FromConfig(adminIds));
 builder.Services.AddSingleton<IdentityResolver>();
 builder.Services.AddSingleton<RevocationStore>();
 builder.Services.AddSingleton<UserQueries>();
+builder.Services.AddSingleton<ProfileService>();
 builder.Services.AddSingleton<LoginCodeStore>();
 builder.Services.AddSingleton<OAuthStateStore>();
 builder.Services.AddHttpClient();
@@ -119,6 +122,14 @@ loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, 
     string loginCode;
     try {
         var token = await app.OAuth.HandleCallbackAsync(code, saved.CodeVerifier, ctx.RequestAborted);
+
+        if (saved.Mode.StartsWith("link:", StringComparison.Ordinal)) {
+            var targetUserId = Guid.Parse(saved.Mode["link:".Length..]);
+            var linkOutcome = await resolver.TryLinkAsync(targetUserId, "authentik", token.Sub, token.DiscordId, token.Username, token.Avatar, ctx.RequestAborted);
+            var linkFlag = linkOutcome.Conflict ? "linkConflict=1" : linkOutcome.Linked ? "linked=ok" : "linkError=1";
+            return Results.Redirect(Program.AppendQuery(saved.ReturnUrl, linkFlag));
+        }
+
         var resolved = await resolver.ResolveAsync("authentik", token.Sub, token.DiscordId, token.Username, token.Avatar, ctx.RequestAborted);
         loginCode = await codes.IssueAsync(resolved.UserId, resolved.IsNew, ctx.RequestAborted);
         if (sessionOptions is not null) {
@@ -142,6 +153,9 @@ loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, 
                 });
         }
     } catch (Exception) {
+        if (saved.Mode.StartsWith("link:", StringComparison.Ordinal))
+            return Results.Redirect(Program.AppendQuery(saved.ReturnUrl, "linkError=1"));
+
         if (saved.Mode == "redirect")
             return Results.Redirect(Program.BuildRedirectCallbackUrl(saved.ReturnUrl, code: null, error: "login_failed"));
 
@@ -240,8 +254,31 @@ loginRoutes.MapGet("/logout", async (HttpContext ctx) => {
     return string.IsNullOrEmpty(returnUrl) ? Results.Ok() : Results.Redirect(returnUrl);
 });
 
+if (profileEnabled) {
+    ProfileRoutes.Map(app, sessionOptions!, avatarStorageDir!, app.Services.GetRequiredService<RevocationStore>(),
+        app.Services.GetRequiredService<ProfileService>(), app.Services.GetRequiredService<UserQueries>());
+
+    app.MapGet("/profile/link/{provider}/start", async (HttpContext ctx, string provider, OAuthStateStore states) => {
+        var userId = await ProfileAuth.TryGetUserIdAsync(ctx, sessionOptions!, app.Services.GetRequiredService<RevocationStore>().IsRevokedAsync, ctx.RequestAborted);
+        if (userId is null) return Results.Unauthorized();
+
+        var returnUrl = ctx.Request.Query["returnUrl"].ToString();
+        var linkApp = Program.ResolveApp(returnUrl, appConfigs);
+        if (linkApp is null) return Results.BadRequest("returnUrl not allowed");
+        if (!Program.KnownProviders.Contains(provider)) return Results.BadRequest("unknown provider");
+
+        var (query, state, verifier) = linkApp.OAuth.BuildAuthParams();
+        await states.SaveAsync(state, verifier, returnUrl, $"link:{userId}", ctx.RequestAborted);
+
+        var authorizeUrl = $"{linkApp.OAuth.Authority}/application/o/authorize/?{query}";
+        var flowUrl = Program.BuildFlowUrl(linkApp.OAuth.Authority, provider, authorizeUrl);
+        return Results.Redirect(flowUrl);
+    });
+}
+
 app.Use(async (ctx, next) => {
-    if (ctx.Request.Path.StartsWithSegments("/login") || ctx.Request.Path.StartsWithSegments("/synckit-login.js")) {
+    if (ctx.Request.Path.StartsWithSegments("/login") || ctx.Request.Path.StartsWithSegments("/synckit-login.js")
+        || ctx.Request.Path.StartsWithSegments("/profile") || ctx.Request.Path.StartsWithSegments("/avatars")) {
         await next();
         return;
     }
@@ -354,6 +391,11 @@ public partial class Program {
 
     public static string BuildRedirectCallbackUrl(string returnUrl, string? code, string? error) {
         var param = code is not null ? $"code={Uri.EscapeDataString(code)}" : $"error={Uri.EscapeDataString(error!)}";
+        var separator = returnUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
+        return $"{returnUrl}{separator}{param}";
+    }
+
+    public static string AppendQuery(string returnUrl, string param) {
         var separator = returnUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
         return $"{returnUrl}{separator}{param}";
     }

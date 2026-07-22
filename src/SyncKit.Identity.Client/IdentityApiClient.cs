@@ -61,5 +61,44 @@ public sealed class IdentityApiClient(HttpClient http) {
         return (await resp.Content.ReadFromJsonAsync<LoginSourcesResponse>(cancellationToken: ct))!;
     }
 
+    public async Task<ProfileResponse?> GetProfileAsync(string sessionToken, CancellationToken ct) {
+        using var req = new HttpRequestMessage(HttpMethod.Get, "/profile/me");
+        req.Headers.Add("X-SyncKit-Session", sessionToken);
+        var resp = await http.SendAsync(req, ct);
+        if (resp.StatusCode == System.Net.HttpStatusCode.Unauthorized) return null;
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ProfileResponse>(cancellationToken: ct);
+    }
+
+    public string StartLinkUrl(string provider, string returnUrl) =>
+        $"/profile/link/{provider}/start?returnUrl={Uri.EscapeDataString(returnUrl)}";
+
+    public async Task<bool> UnlinkIdentityAsync(string sessionToken, string provider, string subject, CancellationToken ct) {
+        using var req = new HttpRequestMessage(HttpMethod.Post, $"/profile/identities/{provider}/{subject}/unlink");
+        req.Headers.Add("X-SyncKit-Session", sessionToken);
+        var resp = await http.SendAsync(req, ct);
+        return resp.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> UploadAvatarAsync(string sessionToken, Stream content, string fileName, string contentType, CancellationToken ct) {
+        using var form = new MultipartFormDataContent();
+        using var fileContent = new StreamContent(content);
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+        form.Add(fileContent, "file", fileName);
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/profile/avatar") { Content = form };
+        req.Headers.Add("X-SyncKit-Session", sessionToken);
+        var resp = await http.SendAsync(req, ct);
+        return resp.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> SelectAvatarAsync(string sessionToken, string provider, string subject, CancellationToken ct) {
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/profile/avatar/select") {
+            Content = JsonContent.Create(new AvatarSelectRequest { Provider = provider, Subject = subject }),
+        };
+        req.Headers.Add("X-SyncKit-Session", sessionToken);
+        var resp = await http.SendAsync(req, ct);
+        return resp.IsSuccessStatusCode;
+    }
+
     private sealed record MergeResult(Guid UserId);
 }

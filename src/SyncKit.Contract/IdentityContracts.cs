@@ -115,3 +115,59 @@ public sealed class LoginSourcesResponse {
     [JsonPropertyName("sources")]
     public List<LoginSourceResponse> Sources { get; set; } = [];
 }
+
+public sealed class ProfileIdentityResponse {
+    [JsonPropertyName("provider")]
+    public string Provider { get; set; } = "";
+
+    [JsonPropertyName("subject")]
+    public string Subject { get; set; } = "";
+
+    [JsonPropertyName("username")]
+    public string? Username { get; set; }
+
+    [JsonPropertyName("avatar")]
+    public string? Avatar { get; set; }
+
+    [JsonPropertyName("linkedAt")]
+    public DateTimeOffset LinkedAt { get; set; }
+}
+
+public sealed class ProfileResponse {
+    [JsonPropertyName("userId")]
+    public Guid UserId { get; set; }
+
+    [JsonPropertyName("username")]
+    public string Username { get; set; } = "";
+
+    [JsonPropertyName("avatar")]
+    public string? Avatar { get; set; }
+
+    [JsonPropertyName("avatarIsCustom")]
+    public bool AvatarIsCustom { get; set; }
+
+    [JsonPropertyName("identities")]
+    public List<ProfileIdentityResponse> Identities { get; set; } = [];
+}
+
+public sealed class LinkResultResponse {
+    [JsonPropertyName("linked")]
+    public bool Linked { get; set; }
+
+    [JsonPropertyName("conflict")]
+    public bool Conflict { get; set; }
+
+    [JsonPropertyName("conflictUsername")]
+    public string? ConflictUsername { get; set; }
+
+    [JsonPropertyName("conflictCreatedAt")]
+    public DateTimeOffset? ConflictCreatedAt { get; set; }
+}
+
+public sealed class AvatarSelectRequest {
+    [JsonPropertyName("provider")]
+    public string Provider { get; set; } = "";
+
+    [JsonPropertyName("subject")]
+    public string Subject { get; set; } = "";
+}

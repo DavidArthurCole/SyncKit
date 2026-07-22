@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
 using SyncKit.Contract;
@@ -67,5 +68,57 @@ public class IdentityApiClientTests {
         Assert.Equal("alice", result.Username);
         Assert.Equal("/identity/redeem", handler.LastRequest!.RequestUri!.AbsolutePath);
         Assert.Contains("\"code\":\"abc123\"", handler.LastRequestBody);
+    }
+
+    [Fact]
+    public async Task GetProfileAsync_SetsSessionHeader_AndParsesResponse() {
+        var expected = new ProfileResponse { UserId = Guid.NewGuid(), Username = "alice", Identities = [] };
+        var (client, handler) = MakeClient(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(expected) });
+
+        var result = await client.GetProfileAsync("tok-1", CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal("alice", result!.Username);
+        Assert.Equal("/profile/me", handler.LastRequest!.RequestUri!.AbsolutePath);
+        Assert.Equal("tok-1", handler.LastRequest.Headers.GetValues("X-SyncKit-Session").Single());
+    }
+
+    [Fact]
+    public async Task GetProfileAsync_Unauthorized_ReturnsNull() {
+        var (client, _) = MakeClient(new HttpResponseMessage(HttpStatusCode.Unauthorized));
+
+        var result = await client.GetProfileAsync("tok-1", CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void StartLinkUrl_BuildsRelativeUrl_WithProviderAndReturnUrl() {
+        var (client, _) = MakeClient(new HttpResponseMessage(HttpStatusCode.OK));
+
+        var url = client.StartLinkUrl("github", "https://app.example.com/settings");
+
+        Assert.Equal("/profile/link/github/start?returnUrl=https%3A%2F%2Fapp.example.com%2Fsettings", url);
+    }
+
+    [Fact]
+    public async Task UnlinkIdentityAsync_PostsToUnlinkRoute() {
+        var (client, handler) = MakeClient(new HttpResponseMessage(HttpStatusCode.NoContent));
+
+        var result = await client.UnlinkIdentityAsync("tok-1", "discord", "d1", CancellationToken.None);
+
+        Assert.True(result);
+        Assert.Equal("/profile/identities/discord/d1/unlink", handler.LastRequest!.RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task SelectAvatarAsync_PostsProviderAndSubject() {
+        var (client, handler) = MakeClient(new HttpResponseMessage(HttpStatusCode.NoContent));
+
+        var result = await client.SelectAvatarAsync("tok-1", "authentik", "sub-1", CancellationToken.None);
+
+        Assert.True(result);
+        Assert.Equal("/profile/avatar/select", handler.LastRequest!.RequestUri!.AbsolutePath);
+        Assert.Contains("\"provider\":\"authentik\"", handler.LastRequestBody);
     }
 }

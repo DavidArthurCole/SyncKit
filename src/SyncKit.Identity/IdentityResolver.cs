@@ -4,6 +4,7 @@ using SyncKit.Contract;
 namespace SyncKit.Identity;
 
 public sealed record ResolveResult(Guid UserId, string Role, string? DiscordId, bool IsNew);
+public sealed record LinkOutcome(bool Linked, bool Conflict, string? ConflictUsername, DateTimeOffset? ConflictCreatedAt);
 
 public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist allowlist) {
     public async Task<ResolveResult> ResolveAsync(
@@ -14,6 +15,7 @@ public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist
         var existing = await LookupAsync(conn, provider, subject, ct);
         if (existing is { } foundUserId) {
             var existingRole = await TouchAndPromoteAsync(conn, foundUserId, discordId, username, avatar, ct);
+            await UpdateIdentitySnapshotAsync(conn, provider, subject, username, avatar, ct);
             await tx.CommitAsync(ct);
             return new ResolveResult(foundUserId, existingRole, discordId, IsNew: false);
         }
@@ -35,7 +37,7 @@ public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist
 
         var effectiveDiscordId = provider == "discord" ? subject : discordId;
         var role = await UpsertUserAsync(conn, userId, effectiveDiscordId, username, avatar, isNew, ct);
-        var winnerId = await InsertIdentityAsync(conn, userId, provider, subject, ct);
+        var winnerId = await InsertIdentityAsync(conn, userId, provider, subject, username, avatar, ct);
 
         await tx.CommitAsync(ct);
         return new ResolveResult(winnerId, role, effectiveDiscordId, isNew && winnerId == userId);
@@ -59,6 +61,52 @@ public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist
 
         await tx.CommitAsync(ct);
         return keepUserId;
+    }
+
+    public async Task<LinkOutcome> TryLinkAsync(
+        Guid userId, string provider, string subject, string? discordId, string? username, string? avatar, CancellationToken ct) {
+        await using var conn = await dataSource.OpenConnectionAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
+
+        var existingOwner = await LookupAsync(conn, provider, subject, ct);
+        if (existingOwner is { } ownerId && ownerId != userId) {
+            await using var cmd = new NpgsqlCommand("SELECT username, created_at FROM users WHERE user_id = $1", conn);
+            cmd.Parameters.AddWithValue(ownerId);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            string? ownerUsername = null;
+            DateTimeOffset? ownerCreatedAt = null;
+            if (await reader.ReadAsync(ct)) {
+                ownerUsername = reader.GetString(0);
+                ownerCreatedAt = reader.GetFieldValue<DateTimeOffset>(1);
+            }
+            await tx.CommitAsync(ct);
+            return new LinkOutcome(Linked: false, Conflict: true, ownerUsername, ownerCreatedAt);
+        }
+
+        await using (var cmd = new NpgsqlCommand(
+            """
+            INSERT INTO identities (user_id, provider, subject, username, avatar)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (provider, subject) DO UPDATE SET username = EXCLUDED.username, avatar = EXCLUDED.avatar
+            """, conn)) {
+            cmd.Parameters.AddWithValue(userId);
+            cmd.Parameters.AddWithValue(provider);
+            cmd.Parameters.AddWithValue(subject);
+            cmd.Parameters.AddWithValue((object?)username ?? DBNull.Value);
+            cmd.Parameters.AddWithValue((object?)avatar ?? DBNull.Value);
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+
+        if (!string.IsNullOrEmpty(discordId)) {
+            await using var cmd = new NpgsqlCommand(
+                "UPDATE users SET discord_id = $2 WHERE user_id = $1 AND discord_id IS NULL", conn);
+            cmd.Parameters.AddWithValue(userId);
+            cmd.Parameters.AddWithValue(discordId);
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+
+        await tx.CommitAsync(ct);
+        return new LinkOutcome(Linked: true, Conflict: false, null, null);
     }
 
     private static async Task<Guid?> LookupAsync(NpgsqlConnection conn, string provider, string subject, CancellationToken ct) {
@@ -89,7 +137,7 @@ public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist
             VALUES ($1, $2, $3, $4, $5, now())
             ON CONFLICT (user_id) DO UPDATE SET
                 username = COALESCE(NULLIF(EXCLUDED.username, ''), users.username),
-                avatar = COALESCE(EXCLUDED.avatar, users.avatar),
+                avatar = CASE WHEN users.avatar_is_custom THEN users.avatar ELSE COALESCE(EXCLUDED.avatar, users.avatar) END,
                 role = EXCLUDED.role,
                 last_login_at = now()
             """, conn);
@@ -109,7 +157,7 @@ public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist
             """
             UPDATE users SET
                 username = COALESCE(NULLIF($2, ''), username),
-                avatar = COALESCE($3, avatar),
+                avatar = CASE WHEN avatar_is_custom THEN avatar ELSE COALESCE($3, avatar) END,
                 role = $4,
                 last_login_at = now()
             WHERE user_id = $1
@@ -139,17 +187,34 @@ public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist
             : UserRoles.ToName(UserRole.Viewer);
 
     private static async Task<Guid> InsertIdentityAsync(
-        NpgsqlConnection conn, Guid userId, string provider, string subject, CancellationToken ct) {
+        NpgsqlConnection conn, Guid userId, string provider, string subject, string? username, string? avatar, CancellationToken ct) {
         await using var cmd = new NpgsqlCommand(
-            "INSERT INTO identities (user_id, provider, subject) VALUES ($1, $2, $3) ON CONFLICT (provider, subject) DO NOTHING",
-            conn);
+            """
+            INSERT INTO identities (user_id, provider, subject, username, avatar)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (provider, subject) DO NOTHING
+            """, conn);
         cmd.Parameters.AddWithValue(userId);
         cmd.Parameters.AddWithValue(provider);
         cmd.Parameters.AddWithValue(subject);
+        cmd.Parameters.AddWithValue((object?)username ?? DBNull.Value);
+        cmd.Parameters.AddWithValue((object?)avatar ?? DBNull.Value);
         var affected = await cmd.ExecuteNonQueryAsync(ct);
         if (affected > 0) return userId;
 
         var winner = await LookupAsync(conn, provider, subject, ct);
         return winner ?? userId;
+    }
+
+    private static async Task UpdateIdentitySnapshotAsync(
+        NpgsqlConnection conn, string provider, string subject, string? username, string? avatar, CancellationToken ct) {
+        await using var cmd = new NpgsqlCommand(
+            "UPDATE identities SET username = COALESCE($3, username), avatar = COALESCE($4, avatar) WHERE provider = $1 AND subject = $2",
+            conn);
+        cmd.Parameters.AddWithValue(provider);
+        cmd.Parameters.AddWithValue(subject);
+        cmd.Parameters.AddWithValue((object?)username ?? DBNull.Value);
+        cmd.Parameters.AddWithValue((object?)avatar ?? DBNull.Value);
+        await cmd.ExecuteNonQueryAsync(ct);
     }
 }

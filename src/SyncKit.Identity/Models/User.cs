@@ -5,6 +5,7 @@ public sealed class User {
     public string? DiscordId { get; set; }
     public string Username { get; set; } = "";
     public string? Avatar { get; set; }
+    public bool AvatarIsCustom { get; set; }
     public string Role { get; set; } = "viewer";
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset LastLoginAt { get; set; }

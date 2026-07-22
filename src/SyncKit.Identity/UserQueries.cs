@@ -8,7 +8,7 @@ public sealed class UserQueries(NpgsqlDataSource dataSource) {
     public async Task<User?> GetAsync(Guid userId, CancellationToken ct) {
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand(
-            "SELECT user_id, discord_id, username, avatar, role, created_at, last_login_at FROM users WHERE user_id = $1",
+            "SELECT user_id, discord_id, username, avatar, role, created_at, last_login_at, avatar_is_custom FROM users WHERE user_id = $1",
             conn);
         cmd.Parameters.AddWithValue(userId);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -19,7 +19,7 @@ public sealed class UserQueries(NpgsqlDataSource dataSource) {
     public async Task<IReadOnlyList<User>> ListAsync(CancellationToken ct) {
         await using var conn = await dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand(
-            "SELECT user_id, discord_id, username, avatar, role, created_at, last_login_at FROM users ORDER BY created_at",
+            "SELECT user_id, discord_id, username, avatar, role, created_at, last_login_at, avatar_is_custom FROM users ORDER BY created_at",
             conn);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         var results = new List<User>();
@@ -44,5 +44,6 @@ public sealed class UserQueries(NpgsqlDataSource dataSource) {
         Role = reader.GetString(4),
         CreatedAt = reader.GetFieldValue<DateTimeOffset>(5),
         LastLoginAt = reader.GetFieldValue<DateTimeOffset>(6),
+        AvatarIsCustom = reader.GetBoolean(7),
     };
 }
