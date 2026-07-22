@@ -5,7 +5,11 @@ namespace SyncKit.Auth;
 public static class SessionIssuer {
     public static void IssueCookie(HttpResponse response, SessionCookieOptions options, SessionUser user, DateTimeOffset now) {
         var token = SessionToken.Issue(options, user, now);
-        response.Cookies.Append(options.CookieName, token, BuildCookieOptions(options, now + options.Ttl));
+        WriteCookie(response, options, token, now + options.Ttl);
+    }
+
+    public static void WriteCookie(HttpResponse response, SessionCookieOptions options, string token, DateTimeOffset expires) {
+        response.Cookies.Append(options.CookieName, token, BuildCookieOptions(options, expires));
     }
 
     public static void ClearCookie(HttpResponse response, SessionCookieOptions options) {

@@ -126,6 +126,7 @@ loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, 
         var resolved = await resolver.ResolveAsync("authentik", token.Sub, token.DiscordId, token.Username, token.Avatar, ctx.RequestAborted);
         loginCode = await codes.IssueAsync(resolved.UserId, resolved.IsNew, ctx.RequestAborted);
         if (sessionOptions is not null) {
+            var issuedAt = DateTimeOffset.UtcNow;
             SessionIssuer.IssueCookie(ctx.Response, sessionOptions, new SessionUser(
                 UserId: resolved.UserId.ToString(),
                 Sid: token.Sid,
@@ -133,7 +134,15 @@ loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, 
                 Name: token.Username,
                 Avatar: token.Avatar,
                 DiscordId: resolved.DiscordId),
-                DateTimeOffset.UtcNow);
+                issuedAt);
+            if (!string.IsNullOrEmpty(token.IdToken))
+                ctx.Response.Cookies.Append(Program.IdHintCookie, token.IdToken, new CookieOptions {
+                    HttpOnly = true,
+                    Secure = true,
+                    SameSite = SameSiteMode.Lax,
+                    Path = "/login",
+                    Expires = issuedAt + sessionOptions.Ttl,
+                });
         }
     } catch (Exception) {
         if (saved.Mode == "redirect")
@@ -216,21 +225,18 @@ loginRoutes.MapGet("/logout", async (HttpContext ctx) => {
     var returnUrlRaw = ctx.Request.Query["returnUrl"].ToString();
     var returnUrl = Program.ResolveApp(returnUrlRaw, appConfigs) is not null ? returnUrlRaw : null;
 
+    var idTokenHint = ctx.Request.Cookies.TryGetValue(Program.IdHintCookie, out var hint) ? hint : null;
+
     if (sessionOptions is not null)
         SessionIssuer.ClearCookie(ctx.Response, sessionOptions);
+    ctx.Response.Cookies.Delete(Program.IdHintCookie, new CookieOptions { Path = "/login" });
 
     var configManager = ctx.RequestServices.GetService<ConfigurationManager<OpenIdConnectConfiguration>>();
     if (configManager is not null) {
         try {
             var discovery = await configManager.GetConfigurationAsync(ctx.RequestAborted);
-            if (!string.IsNullOrEmpty(discovery.EndSessionEndpoint)) {
-                var endSession = discovery.EndSessionEndpoint;
-                if (!string.IsNullOrEmpty(returnUrl)) {
-                    var sep = endSession.Contains('?', StringComparison.Ordinal) ? "&" : "?";
-                    endSession = $"{endSession}{sep}post_logout_redirect_uri={Uri.EscapeDataString(returnUrl)}";
-                }
-                return Results.Redirect(endSession);
-            }
+            if (!string.IsNullOrEmpty(discovery.EndSessionEndpoint))
+                return Results.Redirect(Program.BuildEndSessionUrl(discovery.EndSessionEndpoint, idTokenHint, returnUrl));
         } catch (Exception) {
             return string.IsNullOrEmpty(returnUrl) ? Results.Ok() : Results.Redirect(returnUrl);
         }
@@ -321,7 +327,23 @@ static IdentityUserResponse ToResponse(User u) => new() {
 };
 
 public partial class Program {
+    public const string IdHintCookie = "synckit_idhint";
+
     public static readonly string[] KnownProviders = ["discord", "google", "microsoft", "github"];
+
+    public static string BuildEndSessionUrl(string endSessionEndpoint, string? idTokenHint, string? returnUrl) {
+        var url = endSessionEndpoint;
+        if (!string.IsNullOrEmpty(idTokenHint))
+            url = Append(url, $"id_token_hint={Uri.EscapeDataString(idTokenHint)}");
+        if (!string.IsNullOrEmpty(returnUrl))
+            url = Append(url, $"post_logout_redirect_uri={Uri.EscapeDataString(returnUrl)}");
+        return url;
+
+        static string Append(string target, string param) {
+            var sep = target.Contains('?', StringComparison.Ordinal) ? "&" : "?";
+            return $"{target}{sep}{param}";
+        }
+    }
 
     public static string ValidateMode(string? raw) =>
         raw is "inline" or "redirect" ? raw : "popup";

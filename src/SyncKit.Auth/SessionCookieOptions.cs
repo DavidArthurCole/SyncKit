@@ -2,6 +2,7 @@ namespace SyncKit.Auth;
 
 public sealed class SessionCookieOptions {
     public required string SigningSecret { get; init; }
+    public string? PreviousSigningSecret { get; init; }
     public string CookieName { get; init; } = "synckit_session";
     public string? CookieDomain { get; init; }
     public string Issuer { get; init; } = "eggidentity";
@@ -17,6 +18,7 @@ public sealed class SessionCookieOptions {
 
         return new SessionCookieOptions {
             SigningSecret = secret,
+            PreviousSigningSecret = NullIfEmpty(Environment.GetEnvironmentVariable("SYNCKIT_SESSION_SECRET_PREVIOUS")),
             CookieName = Fallback("SYNCKIT_SESSION_COOKIE_NAME", "synckit_session"),
             CookieDomain = NullIfEmpty(Environment.GetEnvironmentVariable("SYNCKIT_SESSION_COOKIE_DOMAIN")),
             Issuer = Fallback("SYNCKIT_SESSION_ISSUER", "eggidentity"),

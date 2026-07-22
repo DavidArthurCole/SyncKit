@@ -92,4 +92,64 @@ public class SessionTokenTests {
 
         Assert.NotNull(SessionToken.Validate(options, token, justAfterExpiry));
     }
+
+    [Fact]
+    public void PreviousSecret_ValidatesTokenSignedWithOldKey() {
+        const string oldSecret = "old-secret-that-is-plenty-long-aaaaaaaa";
+        const string newSecret = "new-secret-that-is-plenty-long-bbbbbbbb";
+        var oldOptions = Options(secret: oldSecret);
+        var token = SessionToken.Issue(oldOptions, User(), Now);
+
+        var rotated = new SessionCookieOptions {
+            SigningSecret = newSecret, PreviousSigningSecret = oldSecret,
+            Issuer = oldOptions.Issuer, Audience = oldOptions.Audience, Ttl = oldOptions.Ttl,
+        };
+
+        Assert.NotNull(SessionToken.Validate(rotated, token, Now));
+    }
+
+    [Fact]
+    public void RotatedAwayWithoutPrevious_OldTokenFails() {
+        var token = SessionToken.Issue(Options(secret: "old-secret-that-is-plenty-long-aaaaaaaa"), User(), Now);
+
+        Assert.Null(SessionToken.Validate(Options(secret: "new-secret-that-is-plenty-long-bbbbbbbb"), token, Now));
+    }
+
+    [Fact]
+    public void NewTokenSignedWithPrimary_ValidatesUnderRotation() {
+        var rotated = new SessionCookieOptions {
+            SigningSecret = "new-secret-that-is-plenty-long-bbbbbbbb",
+            PreviousSigningSecret = "old-secret-that-is-plenty-long-aaaaaaaa",
+            Ttl = TimeSpan.FromMinutes(480),
+        };
+        var token = SessionToken.Issue(rotated, User(), Now);
+
+        Assert.NotNull(SessionToken.Validate(rotated, token, Now));
+    }
+
+    [Fact]
+    public void Renew_PreservesClaims_AndExtendsExpiry() {
+        var options = Options();
+        var original = SessionToken.Validate(options, SessionToken.Issue(options, User(), Now), Now)!;
+        var originalExp = original.FindFirstValue(JwtRegisteredClaimNames.Exp);
+
+        var later = Now + TimeSpan.FromMinutes(300);
+        var renewedToken = SessionToken.Renew(options, original, later);
+        var renewed = SessionToken.Validate(options, renewedToken, later);
+
+        Assert.NotNull(renewed);
+        Assert.Equal("8d2f0e94-1c3a-4b6e-9f11-2a7c5d0e1234", renewed!.FindFirstValue(JwtRegisteredClaimNames.Sub));
+        Assert.Equal("admin", renewed.FindFirstValue(SessionClaims.Role));
+        Assert.Equal("sess-123", renewed.FindFirstValue(SessionClaims.SessionId));
+        Assert.True(long.Parse(renewed.FindFirstValue(JwtRegisteredClaimNames.Exp)!) > long.Parse(originalExp!));
+    }
+
+    [Fact]
+    public void ShouldRenew_FalseWhenFresh_TrueAfterHalfLife() {
+        var options = Options();
+        var principal = SessionToken.Validate(options, SessionToken.Issue(options, User(), Now), Now)!;
+
+        Assert.False(SessionToken.ShouldRenew(principal, options, Now));
+        Assert.True(SessionToken.ShouldRenew(principal, options, Now + TimeSpan.FromMinutes(241)));
+    }
 }

@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace SyncKit.Auth;
 
 // Resolved claims from a completed Authentik OIDC exchange.
-public sealed record AuthentikTokenResult(string Sub, string? DiscordId, string? Username, string? Avatar, string? Sid);
+public sealed record AuthentikTokenResult(string Sub, string? DiscordId, string? Username, string? Avatar, string? Sid, string? IdToken);
 
 // PKCE authorization-code flow against a self-hosted Authentik instance, scoped to one app's
 // own client_id/secret. One instance per consuming app - each app has its own Authentik
@@ -68,7 +68,8 @@ public sealed class AuthentikOAuth(string authority, string clientId, string cli
             DiscordId: root.TryGetProperty("discord_id", out var did) ? did.GetString() : null,
             Username: root.TryGetProperty("preferred_username", out var un) ? un.GetString() : null,
             Avatar: root.TryGetProperty("picture", out var av) ? av.GetString() : null,
-            Sid: sid);
+            Sid: sid,
+            IdToken: idToken);
     }
 
     public static string? ReadSessionIdFromIdToken(string? idToken) {

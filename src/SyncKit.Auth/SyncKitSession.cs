@@ -51,6 +51,11 @@ public sealed class SyncKitSessionHandler(
             }
         }
 
+        if (SessionToken.ShouldRenew(principal, cookie, clock.GetUtcNow())) {
+            var renewed = SessionToken.Renew(cookie, principal, clock.GetUtcNow());
+            SessionIssuer.WriteCookie(Response, cookie, renewed, clock.GetUtcNow() + cookie.Ttl);
+        }
+
         return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));
     }
 }
