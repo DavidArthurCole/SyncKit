@@ -47,7 +47,7 @@
   background: var(--skp-row-bg, transparent);
 }
 .skp-identity-row:hover { background: var(--skp-row-bg-hover, rgba(127, 127, 127, 0.08)); }
-.skp-provider-glyph { width: var(--skp-glyph-size, 18px); height: var(--skp-glyph-size, 18px); flex: none; opacity: var(--skp-glyph-opacity, 0.85); }
+.skp-provider-glyph { width: var(--skp-glyph-size, 18px); height: var(--skp-glyph-size, 18px); flex: none; opacity: var(--skp-glyph-opacity, 0.85); object-fit: contain; }
 .skp-avatar-chip {
   width: var(--skp-chip-size, 22px);
   height: var(--skp-chip-size, 22px);
@@ -93,6 +93,6 @@
   text-decoration: none;
   color: var(--skp-link-btn-color, currentColor);
 }
-.skp-link-provider .skp-icon { width: var(--skp-glyph-size, 18px); height: var(--skp-glyph-size, 18px); }
+.skp-link-provider .skp-icon { width: var(--skp-glyph-size, 18px); height: var(--skp-glyph-size, 18px); object-fit: contain; }
 .skp-link-provider:hover { background: var(--skp-row-bg-hover, rgba(127, 127, 127, 0.08)); }
 .skp-link-provider-linked { opacity: var(--skp-linked-opacity, 0.4); pointer-events: none; }
