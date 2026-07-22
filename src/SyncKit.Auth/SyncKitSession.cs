@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -15,6 +16,7 @@ public static class SyncKitSessionDefaults {
 
 public sealed class SyncKitSessionOptions : AuthenticationSchemeOptions {
     public SessionCookieOptions Cookie { get; set; } = null!;
+    public Func<ClaimsPrincipal, HttpContext, CancellationToken, Task>? OnValidated { get; set; }
 }
 
 public sealed class SyncKitSessionHandler(
@@ -51,6 +53,14 @@ public sealed class SyncKitSessionHandler(
             }
         }
 
+        if (Options.OnValidated is not null) {
+            try {
+                await Options.OnValidated(principal, Context, Context.RequestAborted);
+            } catch (Exception ex) {
+                Logger.LogWarning(ex, "SyncKit OnValidated hook threw");
+            }
+        }
+
         if (SessionToken.ShouldRenew(principal, cookie, clock.GetUtcNow())) {
             var renewed = SessionToken.Renew(cookie, principal, clock.GetUtcNow());
             SessionIssuer.WriteCookie(Response, cookie, renewed, clock.GetUtcNow() + cookie.Ttl);
@@ -64,12 +74,16 @@ public static class SyncKitSessionExtensions {
     public static AuthenticationBuilder AddSyncKitSession(
         this AuthenticationBuilder builder,
         SessionCookieOptions cookie,
+        Func<ClaimsPrincipal, HttpContext, CancellationToken, Task>? onValidated = null,
         TimeSpan? revocationCacheTtl = null,
         string scheme = SyncKitSessionDefaults.Scheme) {
         var ttl = revocationCacheTtl ?? TimeSpan.FromSeconds(30);
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddSingleton(sp =>
             new SessionRevocationCache(sp.GetRequiredService<TimeProvider>(), ttl));
-        return builder.AddScheme<SyncKitSessionOptions, SyncKitSessionHandler>(scheme, o => o.Cookie = cookie);
+        return builder.AddScheme<SyncKitSessionOptions, SyncKitSessionHandler>(scheme, o => {
+            o.Cookie = cookie;
+            o.OnValidated = onValidated;
+        });
     }
 }
