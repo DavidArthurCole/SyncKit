@@ -1,9 +1,13 @@
+# syntax=docker/dockerfile:1.7
 # Build context is the repo root (needs the whole solution for ProjectReferences).
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-COPY . .
+COPY SyncKit.slnx Directory.Build.props global.json ./
+COPY --parents src/*/*.csproj tests/*/*.csproj ./
 RUN dotnet restore SyncKit.slnx
+
+COPY . .
 RUN dotnet publish src/SyncKit.Agent/SyncKit.Agent.csproj -c Release -o /app/publish --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
