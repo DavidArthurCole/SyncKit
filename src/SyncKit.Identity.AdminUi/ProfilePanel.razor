@@ -7,48 +7,51 @@
     <p class="skp-muted">Loading...</p>
   } else {
     <div class="skp-avatar-row">
-      <img class="skp-avatar" src="@(_profile.Avatar ?? "")" alt="Profile picture" />
-      <div class="skp-avatar-controls">
-        <InputFile OnChange="OnFileSelected" accept="image/png,image/jpeg,image/webp" />
-        @if (_avatarError is not null) {
-          <p class="skp-error">@_avatarError</p>
-        }
+      <div class="skp-avatar-wrap">
+        <img class="skp-avatar" src="@(_profile.Avatar ?? "")" alt="Profile picture" />
+        <label class="skp-avatar-upload" title="Upload image">
+          <InputFile class="skp-avatar-input" OnChange="OnFileSelected" accept="image/png,image/jpeg,image/webp" />
+          @UploadIconSvg
+        </label>
       </div>
+      @if (_avatarError is not null) {
+        <p class="skp-error">@_avatarError</p>
+      }
     </div>
 
     @if (_banner is not null) {
       <p class="skp-banner">@_banner</p>
     }
 
-    <table class="skp-table">
-      <thead><tr><th>Provider</th><th>Linked as</th><th>Linked</th><th></th></tr></thead>
-      <tbody>
-        @foreach (var identity in _profile.Identities) {
-          <tr>
-            <td>@identity.Provider</td>
-            <td class="skp-identity-cell">
-              @if (!string.IsNullOrEmpty(identity.Avatar)) {
-                <img class="skp-thumb" src="@identity.Avatar" alt="" />
-                <button type="button" class="skp-link-btn" @onclick="() => SelectAvatarAsync(identity)">Use this picture</button>
-              }
-              <span>@(identity.Username ?? identity.Subject)</span>
-            </td>
-            <td>@identity.LinkedAt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</td>
-            <td>
-              <button type="button" class="skp-unlink-btn" disabled="@(_profile.Identities.Count <= 1)"
-                      title="@(_profile.Identities.Count <= 1 ? "Cannot unlink the last identity" : "")"
-                      @onclick="() => UnlinkAsync(identity)">
-                Unlink
-              </button>
-            </td>
-          </tr>
-        }
-      </tbody>
-    </table>
+    <ul class="skp-identity-list">
+      @foreach (var identity in _profile.Identities) {
+        <li class="skp-identity-row">
+          <span class="skp-provider-glyph">@ProviderIconSvg(identity.Provider)</span>
+          @if (!string.IsNullOrEmpty(identity.Avatar)) {
+            <button type="button" class="skp-avatar-chip" title="Use this picture" @onclick="() => SelectAvatarAsync(identity)">
+              <img class="skp-thumb" src="@identity.Avatar" alt="" />
+            </button>
+          }
+          <span class="skp-identity-name">@(identity.Username ?? identity.Subject)</span>
+          <span class="skp-identity-date">@identity.LinkedAt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</span>
+          <button type="button" class="skp-unlink-btn" disabled="@(_profile.Identities.Count <= 1)"
+                  title="@(_profile.Identities.Count <= 1 ? "Cannot unlink the last identity" : "Unlink")"
+                  @onclick="() => UnlinkAsync(identity)">
+            @UnlinkIconSvg
+          </button>
+        </li>
+      }
+    </ul>
 
     <div class="skp-link-row">
       @foreach (var provider in KnownProviders) {
-        <a class="skp-link-provider" href="@Identity.StartLinkUrl(provider, ReturnUrl)">Link @provider</a>
+        var linked = _profile.Identities.Any(i => i.Provider == provider);
+        <a class="skp-link-provider @(linked ? "skp-link-provider-linked" : "")"
+           href="@(linked ? "#" : Identity.StartLinkUrl(provider, ReturnUrl))"
+           aria-disabled="@linked">
+          @ProviderIconSvg(provider)
+          <span>@(linked ? $"{Cap(provider)} linked" : $"Link {Cap(provider)}")</span>
+        </a>
       }
     </div>
   }
@@ -63,6 +66,96 @@
     private ProfileResponse? _profile;
     private string? _banner;
     private string? _avatarError;
+
+    private static RenderFragment UploadIconSvg => builder => {
+        builder.OpenElement(0, "svg");
+        builder.AddAttribute(1, "viewBox", "0 0 24 24");
+        builder.AddAttribute(2, "class", "skp-icon");
+        builder.AddAttribute(3, "fill", "none");
+        builder.AddAttribute(4, "stroke", "currentColor");
+        builder.AddAttribute(5, "stroke-width", "2");
+        builder.OpenElement(6, "path");
+        builder.AddAttribute(7, "d", "M12 16V4M12 4l-4 4M12 4l4 4M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3");
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
+    private static RenderFragment UnlinkIconSvg => builder => {
+        builder.OpenElement(0, "svg");
+        builder.AddAttribute(1, "viewBox", "0 0 24 24");
+        builder.AddAttribute(2, "class", "skp-icon");
+        builder.AddAttribute(3, "fill", "none");
+        builder.AddAttribute(4, "stroke", "currentColor");
+        builder.AddAttribute(5, "stroke-width", "2");
+        builder.OpenElement(6, "path");
+        builder.AddAttribute(7, "d", "M18 6 6 18M6 6l12 12");
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
+    private static RenderFragment ProviderIconSvg(string provider) => provider switch {
+        "discord" => builder => {
+            builder.OpenElement(0, "svg");
+            builder.AddAttribute(1, "viewBox", "0 0 24 24");
+            builder.AddAttribute(2, "class", "skp-icon");
+            builder.AddAttribute(3, "fill", "currentColor");
+            builder.OpenElement(4, "path");
+            builder.AddAttribute(5, "d", "M20 5.5A17 17 0 0 0 15.6 4l-.4.9a15 15 0 0 1 3.8 1.3A15.7 15.7 0 0 0 4.9 6.2 15 15 0 0 1 8.7 4.9L8.3 4A17 17 0 0 0 4 5.5C1.6 9.1 1 12.6 1.2 16a17 17 0 0 0 5.2 2.6l.8-1.3a11 11 0 0 1-1.8-.9l.4-.3a12.4 12.4 0 0 0 10.4 0l.4.3a11 11 0 0 1-1.8.9l.8 1.3A17 17 0 0 0 20.8 16c.3-3.9-.6-7.4-2.7-10.5ZM8.7 13.9c-.9 0-1.6-.8-1.6-1.8s.7-1.8 1.6-1.8 1.7.8 1.6 1.8c0 1-.7 1.8-1.6 1.8Zm6.6 0c-.9 0-1.6-.8-1.6-1.8s.7-1.8 1.6-1.8 1.7.8 1.6 1.8c0 1-.7 1.8-1.6 1.8Z");
+            builder.CloseElement();
+            builder.CloseElement();
+        },
+        "google" => builder => {
+            builder.OpenElement(0, "svg");
+            builder.AddAttribute(1, "viewBox", "0 0 24 24");
+            builder.AddAttribute(2, "class", "skp-icon");
+            builder.OpenElement(3, "path");
+            builder.AddAttribute(4, "fill", "#4285F4");
+            builder.AddAttribute(5, "d", "M22 12.2c0-.7-.1-1.4-.2-2H12v4h5.6a4.8 4.8 0 0 1-2.1 3.2v2.6h3.4c2-1.8 3.1-4.5 3.1-7.8Z");
+            builder.CloseElement();
+            builder.OpenElement(6, "path");
+            builder.AddAttribute(7, "fill", "#34A853");
+            builder.AddAttribute(8, "d", "M12 22c2.8 0 5.2-.9 6.9-2.5l-3.4-2.6c-.9.6-2.1 1-3.5 1-2.7 0-5-1.8-5.8-4.3H2.7v2.7A10 10 0 0 0 12 22Z");
+            builder.CloseElement();
+            builder.OpenElement(9, "path");
+            builder.AddAttribute(10, "fill", "#FBBC05");
+            builder.AddAttribute(11, "d", "M6.2 13.6a6 6 0 0 1 0-3.8V7.1H2.7a10 10 0 0 0 0 9l3.5-2.5Z");
+            builder.CloseElement();
+            builder.OpenElement(12, "path");
+            builder.AddAttribute(13, "fill", "#EA4335");
+            builder.AddAttribute(14, "d", "M12 6.4c1.5 0 2.9.5 4 1.5l3-3A10 10 0 0 0 2.7 7.1l3.5 2.7C7 7.4 9.3 6.4 12 6.4Z");
+            builder.CloseElement();
+            builder.CloseElement();
+        },
+        "microsoft" => builder => {
+            builder.OpenElement(0, "svg");
+            builder.AddAttribute(1, "viewBox", "0 0 24 24");
+            builder.AddAttribute(2, "class", "skp-icon");
+            builder.OpenElement(3, "rect");
+            builder.AddAttribute(4, "x", "2"); builder.AddAttribute(5, "y", "2"); builder.AddAttribute(6, "width", "9.5"); builder.AddAttribute(7, "height", "9.5"); builder.AddAttribute(8, "fill", "#F25022");
+            builder.CloseElement();
+            builder.OpenElement(9, "rect");
+            builder.AddAttribute(10, "x", "12.5"); builder.AddAttribute(11, "y", "2"); builder.AddAttribute(12, "width", "9.5"); builder.AddAttribute(13, "height", "9.5"); builder.AddAttribute(14, "fill", "#7FBA00");
+            builder.CloseElement();
+            builder.OpenElement(15, "rect");
+            builder.AddAttribute(16, "x", "2"); builder.AddAttribute(17, "y", "12.5"); builder.AddAttribute(18, "width", "9.5"); builder.AddAttribute(19, "height", "9.5"); builder.AddAttribute(20, "fill", "#00A4EF");
+            builder.CloseElement();
+            builder.OpenElement(21, "rect");
+            builder.AddAttribute(22, "x", "12.5"); builder.AddAttribute(23, "y", "12.5"); builder.AddAttribute(24, "width", "9.5"); builder.AddAttribute(25, "height", "9.5"); builder.AddAttribute(26, "fill", "#FFB900");
+            builder.CloseElement();
+            builder.CloseElement();
+        },
+        "github" => builder => {
+            builder.OpenElement(0, "svg");
+            builder.AddAttribute(1, "viewBox", "0 0 24 24");
+            builder.AddAttribute(2, "class", "skp-icon");
+            builder.AddAttribute(3, "fill", "currentColor");
+            builder.OpenElement(4, "path");
+            builder.AddAttribute(5, "d", "M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1-1.5-1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .8.1-.7.4-1.1.6-1.4-2.2-.3-4.6-1.1-4.6-4.9 0-1.1.4-2 1-2.7-.1-.3-.5-1.3.1-2.7 0 0 .8-.3 2.7 1a9.3 9.3 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .6 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.8-2.4 4.6-4.6 4.9.4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2Z");
+            builder.CloseElement();
+            builder.CloseElement();
+        },
+        _ => builder => { }
+    };
 
     protected override async Task OnInitializedAsync() {
         await LoadAsync();
@@ -96,6 +189,8 @@
         if (!ok) _avatarError = "Upload failed: unsupported file type or too large.";
         await LoadAsync();
     }
+
+    private static string Cap(string s) => char.ToUpperInvariant(s[0]) + s[1..];
 
     public void Dispose() {
     }

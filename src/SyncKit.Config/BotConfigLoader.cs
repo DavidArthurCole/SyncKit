@@ -11,7 +11,6 @@ public sealed record BotConfigValues(
     string? DeployAgentSecret,
     string? PostgresConnectionString,
     string? DashboardChannelId,
-    string? DeployNotifySecret,
     string? DiscordAdminClientId,
     string? DiscordAdminClientSecret,
     string? AdminCallbackUrl);
@@ -33,7 +32,6 @@ public static class BotConfigLoader {
             Get("DEPLOY_AGENT_SECRET"),
             Get("POSTGRES_CONNECTION_STRING"),
             Get("DASHBOARD_CHANNEL_ID"),
-            Get("DEPLOY_NOTIFY_SECRET"),
             Get("DISCORD_ADMIN_CLIENT_ID"),
             Get("DISCORD_ADMIN_CLIENT_SECRET"),
             Get("ADMIN_CALLBACK_URL"));

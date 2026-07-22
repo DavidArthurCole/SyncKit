@@ -136,12 +136,17 @@ public sealed class SyncKitBotBuilder {
             channelConfigStore = new ChannelConfigStore(botDataSource);
         }
 
-        var deployNotifySecret = values.DeployNotifySecret ?? "";
-        if (bot is not null && channelConfigStore is not null && !string.IsNullOrEmpty(deployNotifySecret) &&
+        if (bot is not null && channelConfigStore is not null && botDataSource is not null &&
             ulong.TryParse(cfg.GuildId, out var notifyGuildId)) {
             var notifier = new DeployNotifier(channelConfigStore, bot.Client, notifyGuildId, cfg.Name);
-            app.MapPost("/internal/deploy-notify",
-                DeployNotifyHandler.Build(deployNotifySecret, res => notifier.NotifyAsync(res, CancellationToken.None)));
+            var deployStateStore = new DeployStateStore(botDataSource);
+            var tracker = new DeployVersionTracker(deployStateStore, notifier);
+            try {
+                await tracker.CheckAndNotifyAsync(
+                    cfg.Name, Environment.GetEnvironmentVariable("GIT_SHA") ?? "", cfg.Build.Version, CancellationToken.None);
+            } catch (Exception ex) {
+                app.Logger.LogWarning(ex, "synckit: deploy self-report failed, continuing");
+            }
         }
 
         configureRoutes?.Invoke(app);
