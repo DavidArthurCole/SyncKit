@@ -24,6 +24,7 @@ var loginWidgetEnabled = !string.IsNullOrEmpty(authentikAuthority) && !string.Is
 var appConfigs = loginWidgetEnabled
     ? AppAuthConfigLoader.LoadFromDirectory(authentikAppsDir!, authentikAuthority!)
     : [];
+var sessionOptions = SessionCookieOptions.FromEnvironment();
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls($"http://*:{port}");
@@ -124,6 +125,16 @@ loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, 
         var token = await app.OAuth.HandleCallbackAsync(code, saved.CodeVerifier, ctx.RequestAborted);
         var resolved = await resolver.ResolveAsync("authentik", token.Sub, token.DiscordId, token.Username, token.Avatar, ctx.RequestAborted);
         loginCode = await codes.IssueAsync(resolved.UserId, resolved.IsNew, ctx.RequestAborted);
+        if (sessionOptions is not null) {
+            SessionIssuer.IssueCookie(ctx.Response, sessionOptions, new SessionUser(
+                UserId: resolved.UserId.ToString(),
+                Sid: token.Sid,
+                Role: resolved.Role,
+                Name: token.Username,
+                Avatar: token.Avatar,
+                DiscordId: resolved.DiscordId),
+                DateTimeOffset.UtcNow);
+        }
     } catch (Exception) {
         if (saved.Mode == "redirect")
             return Results.Redirect(Program.BuildRedirectCallbackUrl(saved.ReturnUrl, code: null, error: "login_failed"));
@@ -199,6 +210,33 @@ loginRoutes.MapPost("/backchannel-logout", async (HttpContext ctx, RevocationSto
 
     await revocations.RevokeAsync(sid, ctx.RequestAborted);
     return Results.Ok();
+});
+
+loginRoutes.MapGet("/logout", async (HttpContext ctx) => {
+    var returnUrlRaw = ctx.Request.Query["returnUrl"].ToString();
+    var returnUrl = Program.ResolveApp(returnUrlRaw, appConfigs) is not null ? returnUrlRaw : null;
+
+    if (sessionOptions is not null)
+        SessionIssuer.ClearCookie(ctx.Response, sessionOptions);
+
+    var configManager = ctx.RequestServices.GetService<ConfigurationManager<OpenIdConnectConfiguration>>();
+    if (configManager is not null) {
+        try {
+            var discovery = await configManager.GetConfigurationAsync(ctx.RequestAborted);
+            if (!string.IsNullOrEmpty(discovery.EndSessionEndpoint)) {
+                var endSession = discovery.EndSessionEndpoint;
+                if (!string.IsNullOrEmpty(returnUrl)) {
+                    var sep = endSession.Contains('?', StringComparison.Ordinal) ? "&" : "?";
+                    endSession = $"{endSession}{sep}post_logout_redirect_uri={Uri.EscapeDataString(returnUrl)}";
+                }
+                return Results.Redirect(endSession);
+            }
+        } catch (Exception) {
+            return string.IsNullOrEmpty(returnUrl) ? Results.Ok() : Results.Redirect(returnUrl);
+        }
+    }
+
+    return string.IsNullOrEmpty(returnUrl) ? Results.Ok() : Results.Redirect(returnUrl);
 });
 
 app.Use(async (ctx, next) => {

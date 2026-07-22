@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace SyncKit.Auth;
 
 // Resolved claims from a completed Authentik OIDC exchange.
-public sealed record AuthentikTokenResult(string Sub, string? DiscordId, string? Username, string? Avatar);
+public sealed record AuthentikTokenResult(string Sub, string? DiscordId, string? Username, string? Avatar, string? Sid);
 
 // PKCE authorization-code flow against a self-hosted Authentik instance, scoped to one app's
 // own client_id/secret. One instance per consuming app - each app has its own Authentik
@@ -49,6 +49,9 @@ public sealed class AuthentikOAuth(string authority, string clientId, string cli
         if (string.IsNullOrEmpty(accessToken))
             throw new InvalidOperationException("Authentik token response missing access_token");
 
+        var idToken = tokenDoc.RootElement.TryGetProperty("id_token", out var itEl) ? itEl.GetString() : null;
+        var sid = ReadSessionIdFromIdToken(idToken);
+
         using var userInfoReq = new HttpRequestMessage(HttpMethod.Get, $"{Authority}/application/o/userinfo/");
         userInfoReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
         var userInfoResp = await Http.SendAsync(userInfoReq, ct);
@@ -64,7 +67,26 @@ public sealed class AuthentikOAuth(string authority, string clientId, string cli
             Sub: sub,
             DiscordId: root.TryGetProperty("discord_id", out var did) ? did.GetString() : null,
             Username: root.TryGetProperty("preferred_username", out var un) ? un.GetString() : null,
-            Avatar: root.TryGetProperty("picture", out var av) ? av.GetString() : null);
+            Avatar: root.TryGetProperty("picture", out var av) ? av.GetString() : null,
+            Sid: sid);
+    }
+
+    public static string? ReadSessionIdFromIdToken(string? idToken) {
+        if (string.IsNullOrEmpty(idToken)) return null;
+        var parts = idToken.Split('.');
+        if (parts.Length < 2) return null;
+        try {
+            var payload = Convert.FromBase64String(PadBase64Url(parts[1]));
+            using var doc = JsonDocument.Parse(payload);
+            return doc.RootElement.TryGetProperty("sid", out var sidEl) ? sidEl.GetString() : null;
+        } catch (Exception) {
+            return null;
+        }
+    }
+
+    private static string PadBase64Url(string value) {
+        var s = value.Replace('-', '+').Replace('_', '/');
+        return (s.Length % 4) switch { 2 => s + "==", 3 => s + "=", _ => s };
     }
 
     private static string GenerateCodeVerifier() {
