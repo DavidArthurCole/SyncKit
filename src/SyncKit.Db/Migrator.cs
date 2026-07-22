@@ -2,9 +2,6 @@ using Npgsql;
 
 namespace SyncKit.Db;
 
-// Ports Go db.MigrationFiles / prefixNum / Migrate. Tracking table is synckit_migrations
-// (version INTEGER PRIMARY KEY); applies *.up.sql files whose integer prefix exceeds the max
-// recorded version, in numeric (not lexical) order.
 public static class Migrator {
     public static int PrefixNum(string path) {
         var baseName = Path.GetFileName(path);
@@ -37,8 +34,6 @@ public static class Migrator {
             if (v <= current) continue;
             var sql = await File.ReadAllTextAsync(f, ct);
 
-            // One transaction per file: a kill mid-migration rolls back completely instead
-            // of leaving partial DDL committed for the next boot attempt to collide with.
             await using var tx = await conn.BeginTransactionAsync(ct);
             await using (var exec = new NpgsqlCommand(sql, conn))
                 await exec.ExecuteNonQueryAsync(ct);

@@ -1,10 +1,6 @@
 @rendermode @(RenderMode.InteractiveServer)
 @inject IServiceProvider Services
 
-@* Standardized SyncKit bot-config editor. Edits the per-event deploy notifications as a MessageSpec
-   (embed OR ComponentsV2 + mentions) plus the dashboard embed. Talks to BotConfigService directly;
-   the host page is responsible for admin gating. Self-styled via scoped CSS. *@
-
 <section class="skc">
   @if (Service is null) {
     <p class="skc-muted">Bot not configured (needs a bot token, a dashboard channel, and Postgres).</p>

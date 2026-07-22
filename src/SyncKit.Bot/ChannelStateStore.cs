@@ -4,7 +4,6 @@ namespace SyncKit.Bot;
 
 public sealed record ChannelState(string GuildId, string AppName, string Kind, string DiscordId, string? WebhookToken);
 
-// Raw Npgsql over bot_channel_state, matching SyncKit.Identity's UserQueries convention.
 public sealed class ChannelStateStore(NpgsqlDataSource dataSource) {
     public async Task<ChannelState?> GetAsync(string guildId, string appName, string kind, CancellationToken ct) {
         await using var conn = await dataSource.OpenConnectionAsync(ct);

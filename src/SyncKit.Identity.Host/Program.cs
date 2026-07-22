@@ -41,8 +41,6 @@ builder.Services.AddHttpClient();
 if (loginWidgetEnabled)
     builder.Services.AddSingleton(sp => new IconCache(sp.GetRequiredService<IHttpClientFactory>(), authentikAuthority!));
 
-// Backs /login/backchannel-logout's logout_token signature check: fetches and caches Authentik's
-// discovery doc/JWKS independently of AuthentikOAuth's own authorization-code exchange.
 if (loginWidgetEnabled) {
     builder.Services.AddSingleton(new ConfigurationManager<OpenIdConnectConfiguration>(
         $"{authentikAuthority!.TrimEnd('/')}/.well-known/openid-configuration",
@@ -58,8 +56,6 @@ await using (var conn = await dataSource.OpenConnectionAsync())
 var sweeper = new ExpiredRowSweeper(dataSource, TimeSpan.FromMinutes(sweepIntervalMinutes));
 _ = sweeper.RunAsync(app.Lifetime.ApplicationStopping);
 
-// Unauthenticated browser-facing routes MUST be reachable without the bearer secret below,
-// since browsers can't send IDENTITY_API_SECRET.
 var loginRoutes = app.MapGroup("/login");
 
 loginRoutes.MapGet("/sources", (HttpContext ctx) => {
@@ -175,8 +171,6 @@ loginRoutes.MapGet("/callback", async (HttpContext ctx, OAuthStateStore states, 
     return Results.Content(html, "text/html");
 });
 
-// Authentik back-channel logout: server-to-server POST with a signed logout_token, no cookies/session context.
-// Per OIDC Back-Channel Logout 1.0 sec 2.6: verify signature + iss/aud, require an "events" claim carrying backchannel-logout, forbid "nonce", then revoke the sid.
 loginRoutes.MapPost("/backchannel-logout", async (HttpContext ctx, RevocationStore revocations) => {
     if (!loginWidgetEnabled) return Results.NotFound();
     var form = await ctx.Request.ReadFormAsync(ctx.RequestAborted);
@@ -275,9 +269,6 @@ app.MapGet("/identity/{userId:guid}", async (Guid userId, UserQueries users, Can
     return Results.Ok(ToResponse(user));
 });
 
-// Session revocation is sid-keyed only (revoked_sessions has no user_id column) - no userId in
-// these routes; back-channel logout tokens only ever carry a sid, never a user_id, so requiring
-// one here would force every caller into an unnecessary extra lookup.
 app.MapPost("/identity/revoke-session", async (RevokeSessionRequest req, RevocationStore store, CancellationToken ct) => {
     await store.RevokeAsync(req.Sid, ct);
     return Results.NoContent();

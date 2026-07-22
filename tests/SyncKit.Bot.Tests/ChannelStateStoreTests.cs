@@ -5,7 +5,6 @@ using Xunit;
 
 namespace SyncKit.Bot.Tests;
 
-// DB-gated: same pattern as SyncKit.Identity.Tests (plain Fact + early return when unset).
 public class ChannelStateStoreTests {
     private static string? ConnString => Environment.GetEnvironmentVariable("SYNCKIT_TEST_PG_CONN");
 

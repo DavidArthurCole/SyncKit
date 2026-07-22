@@ -1,10 +1,3 @@
-// One-time cutover: merges EggIncognito's and EggLedger's independent users/identities tables
-// into SyncKit's identity schema. Dry-run (report only) unless --commit is passed.
-//
-// Env:
-//   EGI_SOURCE_DB_CONNECTION      EggIncognito's Postgres connection string (read-only use)
-//   LEDGER_SOURCE_DB_CONNECTION   EggLedger's Postgres connection string (read-only use)
-//   IDENTITY_DB_CONNECTION        target SyncKit identity database connection string
 using Npgsql;
 using SyncKit.Db;
 using SyncKit.Identity.Tools;

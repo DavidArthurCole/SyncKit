@@ -3,8 +3,6 @@ using SyncKit.Contract;
 
 namespace SyncKit.Bot;
 
-// Builds the Scriban variable set for deploy-notification templates. The token names are frozen
-// (they appear in DeployEmbedDefaults.Variables and every saved template).
 public static class DeployVars {
     public static IReadOnlyDictionary<string, object?> Build(DeployResponse res, string appName) =>
         new Dictionary<string, object?> {
@@ -19,8 +17,6 @@ public static class DeployVars {
         };
 }
 
-// Builds the Scriban variable set for the dashboard embed. Provider ExtraFields are exposed as a
-// nested object so templates read {{ extra.Mode }}. Token names frozen (DashboardEmbedDefaults.Variables).
 public static class DashboardVars {
     public static IReadOnlyDictionary<string, object?> Build(DashboardSnapshot snapshot) {
         var extra = new ScriptObject();

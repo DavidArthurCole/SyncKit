@@ -3,9 +3,6 @@ using SyncKit.Identity.Models;
 
 namespace SyncKit.Identity.Tools;
 
-// Idempotent: ON CONFLICT DO NOTHING on both tables, so re-running after a partial failure
-// (or re-running the whole tool after new source rows appear) never duplicates or clobbers.
-// One transaction for the whole write.
 public static class CutoverWriter {
     public static async Task WriteAsync(string targetConnString, MergeResult merge, CancellationToken ct) {
         await using var db = NpgsqlDataSource.Create(targetConnString);

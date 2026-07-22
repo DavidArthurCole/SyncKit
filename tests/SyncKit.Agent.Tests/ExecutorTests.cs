@@ -3,8 +3,6 @@ using SyncKit.Agent;
 namespace SyncKit.Agent.Tests;
 
 public class ExecutorTests {
-    // A step that records it ran and optionally fails / short-circuits, so pipeline flow is testable
-    // without real commands.
     private sealed class FakeStep(string? error = null, bool shortCircuit = false, bool runOnShortCircuit = false) : IStep {
         public bool Ran { get; private set; }
         public bool RunOnShortCircuit => runOnShortCircuit;

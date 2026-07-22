@@ -7,7 +7,7 @@ namespace SyncKit.Auth.Tests;
 public class RequireAuthTests {
     [Theory]
     [InlineData("Bearer abc123", "abc123")]
-    [InlineData("abc123", "abc123")]      // Go TrimPrefix leaves bare token unchanged
+    [InlineData("abc123", "abc123")]
     [InlineData("", "")]
     public void ExtractToken_StripsBearerPrefix(string header, string expected) {
         Assert.Equal(expected, RequireAuth.ExtractToken(header));
@@ -23,7 +23,6 @@ public class RequireAuthTests {
         Assert.Equal(401, ctx.Response.StatusCode);
     }
 
-    // Session store that must not be hit when there is no token.
     private sealed class ThrowingSessionStore : ISessionStore {
         public Task<(bool Found, string DiscordId, long ExpiresAt)> LookupAsync(string token, CancellationToken ct)
             => throw new Xunit.Sdk.XunitException("session store should not be queried without a token");

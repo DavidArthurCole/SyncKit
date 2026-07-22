@@ -5,8 +5,6 @@ namespace SyncKit.Identity;
 
 public sealed record ResolveResult(Guid UserId, string Role, string? DiscordId, bool IsNew);
 
-// Resolves a user_id for any provider login: exact-match, else auto-link via discord identity, else create.
-// The identities insert is `ON CONFLICT DO NOTHING` + re-select-on-conflict so two concurrent first logins for the same (provider, subject) agree on one winning user_id.
 public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist allowlist) {
     public async Task<ResolveResult> ResolveAsync(
         string provider, string subject, string? discordId, string? username, string? avatar, CancellationToken ct) {
@@ -28,8 +26,6 @@ public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist
             isNew = false;
         } else if (provider == "discord" &&
               await LookupByDiscordIdAsync(conn, subject, ct) is { } discordUserId) {
-            // Discord-as-primary-provider re-login: the users row already exists keyed by
-            // discord_id (upserted below), the identities row may just be missing.
             userId = discordUserId;
             isNew = false;
         } else {
@@ -142,9 +138,6 @@ public sealed class IdentityResolver(NpgsqlDataSource dataSource, AdminAllowlist
             ? UserRoles.ToName(UserRole.Admin)
             : UserRoles.ToName(UserRole.Viewer);
 
-    // Race-safe: if a concurrent resolve already won this exact (provider, subject) pair,
-    // ON CONFLICT DO NOTHING makes this a no-op; re-select and return the winner's user_id
-    // rather than the caller's freshly-built one.
     private static async Task<Guid> InsertIdentityAsync(
         NpgsqlConnection conn, Guid userId, string provider, string subject, CancellationToken ct) {
         await using var cmd = new NpgsqlCommand(

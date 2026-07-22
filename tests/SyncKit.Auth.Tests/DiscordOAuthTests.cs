@@ -4,7 +4,6 @@ using Xunit;
 namespace SyncKit.Auth.Tests;
 
 public class DiscordOAuthTests {
-    // Go randomHex(n) returns 2n hex chars. GenerateEncryptionKey is randomHex(32) => 64 chars.
     [Fact]
     public void GenerateEncryptionKey_Is64HexChars() {
         var key = DiscordOAuth.GenerateEncryptionKey();

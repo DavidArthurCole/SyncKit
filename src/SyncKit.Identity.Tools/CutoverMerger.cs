@@ -13,8 +13,6 @@ public sealed record MergeResult(
     IReadOnlyList<RemapEntry> Remaps,
     IReadOnlyList<OrphanIdentity> Orphans);
 
-// Pure merge decision, no I/O: EggIncognito's users win discord_id collisions.
-// EggLedger's identities for that discord_id get remapped onto the surviving user_id; non-colliding users pass through untouched.
 public static class CutoverMerger {
     public static MergeResult Merge(SourceSnapshot egi, SourceSnapshot ledger) {
         var egiByDiscordId = egi.Users.Where(u => u.DiscordId is not null).ToDictionary(u => u.DiscordId!);
@@ -33,9 +31,6 @@ public static class CutoverMerger {
             users.Add(ToUser(u));
         }
 
-        // A user_id an identity row references but that has no matching users row is pre-existing
-        // source-data corruption (confirmed: EggIncognito's identities table has no FK, so nothing
-        // ever enforced this) - skip it and report it rather than fail the whole cutover.
         var knownUserIds = users.Select(u => u.UserId).ToHashSet();
         var orphans = new List<OrphanIdentity>();
 
@@ -53,9 +48,6 @@ public static class CutoverMerger {
         return new MergeResult(users, Dedupe(identities), remaps, orphans);
     }
 
-    // A remapped ledger user may already have an authentik/discord identity row EggIncognito's
-    // side also created independently (both apps' discord logins insert (discord, discordId)) -
-    // keep the earliest-linked row per (provider, subject), drop the duplicate.
     private static List<Models.Identity> Dedupe(List<Models.Identity> identities) =>
         [.. identities
             .GroupBy(i => (i.Provider, i.Subject))

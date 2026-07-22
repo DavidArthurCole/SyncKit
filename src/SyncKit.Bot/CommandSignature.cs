@@ -3,16 +3,12 @@ using Discord;
 
 namespace SyncKit.Bot;
 
-// Discord-free shape of one command option, recursive for subcommands.
 public sealed record OptionShape(
     string Name, string Description, int Type, bool Required, bool Autocomplete,
     IReadOnlyList<OptionShape> Options);
 
-// Discord-free shape of one slash command.
 public sealed record CommandShape(string Name, string Description, IReadOnlyList<OptionShape> Options);
 
-// Structural signature of the command set (name/desc/option tree, order-insensitive). Coarse on purpose:
-// context/integration-type not captured, so bump a description to force a re-push.
 public static class CommandSignature {
     public static string Compute(IEnumerable<CommandShape> commands) {
         var sb = new StringBuilder();
@@ -32,7 +28,6 @@ public static class CommandSignature {
         }
     }
 
-    // Shape of the catalog we are about to push.
     public static CommandShape FromProperties(ApplicationCommandProperties props) {
         var slash = props as SlashCommandProperties;
         return new CommandShape(
@@ -49,7 +44,6 @@ public static class CommandSignature {
         o.Name ?? "", o.Description ?? "", (int)o.Type, Flag(o.IsRequired), Flag(o.IsAutocomplete),
         ToShapes(o.Options?.Select(FromOption)));
 
-    // Shape of what Discord reports as currently registered.
     public static CommandShape FromCommand(IApplicationCommand cmd) => new(
         cmd.Name ?? "", cmd.Description ?? "",
         ToShapes(cmd.Options?.Select(FromOption)));

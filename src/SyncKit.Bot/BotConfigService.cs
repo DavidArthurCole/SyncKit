@@ -42,8 +42,6 @@ public sealed record SaveResult(bool Ok, string? Error, string? GithubWebhookUrl
 
 public sealed record VariableDoc(string Name, string Desc);
 
-// UI-agnostic bot config logic: no HTTP, no HTML, no Discord types. Consumers own the UI and
-// supply ensure/teardown webhook delegates so this stays free of ChannelHub/SocketGuild.
 public sealed class BotConfigService(
     string guildId, string appName,
     ChannelConfigStore configStore, ChannelStateStore stateStore,
@@ -128,7 +126,6 @@ public sealed class BotConfigService(
     public MessageSpec DefaultFailureMessage { get; } = MessageSpec.FromEmbed(DeployEmbedDefaults.Failure);
     public MessageSpec DefaultUptodateMessage { get; } = MessageSpec.FromEmbed(DeployEmbedDefaults.AlreadyUpToDate);
 
-    // Returns null when valid (or absent), else a short message naming the first broken part.
     public static string? ValidateEmbedJson(string? json) {
         if (string.IsNullOrWhiteSpace(json)) return null;
 

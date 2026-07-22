@@ -16,8 +16,6 @@ public sealed record ChannelConfig(
     string? FailureMessageJson = null,
     string? UptodateMessageJson = null);
 
-// Raw Npgsql over bot_channel_config, matching ChannelStateStore's shape. Null columns mean
-// "no override" - callers fall back to BotConfig/hardcoded defaults.
 public sealed class ChannelConfigStore(NpgsqlDataSource dataSource) {
     public async Task<ChannelConfig?> GetAsync(string guildId, string appName, CancellationToken ct) {
         await using var conn = await dataSource.OpenConnectionAsync(ct);

@@ -7,7 +7,6 @@ using SyncKit.Db;
 
 namespace SyncKit.Bot;
 
-// Barebones-bot-flavored-by-config entry point
 public sealed class SyncKitBotBuilder {
     private string _configFilePath = "/etc/synckit/config.env";
     private Func<string, string?> _envFallback = Environment.GetEnvironmentVariable;
@@ -29,7 +28,6 @@ public sealed class SyncKitBotBuilder {
     private TimeSpan _dashboardRefreshInterval = TimeSpan.FromMinutes(5);
 
     public SyncKitBotBuilder WithConfigFile(string path) { _configFilePath = path; return this; }
-    // Test-only escape hatch so unit tests don't depend on real process env vars.
     public SyncKitBotBuilder WithEnvFallback(Func<string, string?> envFallback) { _envFallback = envFallback; return this; }
     public SyncKitBotBuilder WithName(string name) { _name = name; return this; }
     public SyncKitBotBuilder WithBuild(VerifyInfo build) { _build = build; return this; }
@@ -80,7 +78,6 @@ public sealed class SyncKitBotBuilder {
         };
     }
 
-    // Delegate always wins over options when both are set for the same state.
     public Embed ResolveVerifyEmbed(BotConfig cfg) =>
         cfg.VerifyEmbedBuilder is not null ? cfg.VerifyEmbedBuilder(cfg)
         : cfg.VerifyEmbedOptions is not null ? cfg.VerifyEmbedOptions.Apply(DefaultEmbeds.Verify(cfg))

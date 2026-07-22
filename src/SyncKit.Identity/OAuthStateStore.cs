@@ -4,8 +4,6 @@ namespace SyncKit.Identity;
 
 public sealed record OAuthState(string CodeVerifier, string ReturnUrl, string Mode);
 
-// Server-side state for the /login/go -> /login/callback round trip. Single-use: consumed
-// (deleted) on lookup so a state value can't be replayed against /login/callback twice.
 public sealed class OAuthStateStore(NpgsqlDataSource dataSource, TimeSpan? ttl = null) {
     private readonly TimeSpan _ttl = ttl ?? TimeSpan.FromMinutes(5);
 

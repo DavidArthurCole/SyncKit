@@ -2,9 +2,6 @@ using Discord;
 
 namespace SyncKit.Bot;
 
-// Ports Go bot/embeds.go + VerifyResponse embed. Colors and titles frozen for visual parity.
-// Renamed from Embeds so app code can call SyncKitBot.DefaultEmbeds.X inside a full-delegate
-// override and layer changes on top instead of reimplementing from scratch.
 public static class DefaultEmbeds {
     public static Embed AlreadyUpToDate(BotConfig cfg, string hash) =>
         new EmbedBuilder()
@@ -39,8 +36,6 @@ public static class DefaultEmbeds {
 
 }
 
-// Tier-2 re-skin: overrides Color/Title on a SyncKit default embed and appends ExtraFields
-// after the builtin ones. A full delegate (tier 3) always wins over this when both are set.
 public sealed record EmbedOptions {
     public uint? Color { get; init; }
     public string? Title { get; init; }

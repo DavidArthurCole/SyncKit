@@ -3,7 +3,6 @@ using SyncKit.Contract;
 
 namespace SyncKit.Bot;
 
-// Ports Go bot.Config. DeployAgentUrl/Secret enable /updateserver.
 public sealed class BotConfig {
     public string Name { get; init; } = "";
     public string Token { get; init; } = "";
@@ -26,33 +25,24 @@ public sealed class BotConfig {
     public Func<BotConfig, string, string, Embed>? SuccessEmbedBuilder { get; init; }
     public Func<string, Embed>? FailureEmbedBuilder { get; init; }
 
-    // false = today's per-command guild-scoped CreateApplicationCommandAsync behavior, unchanged.
     public bool GlobalCommands { get; init; }
-    // Dev flag: also register guild-scoped copies alongside global commands (faster local iteration).
     public bool GuildCommandMirror { get; init; }
 
-    // ChannelHub is enabled only when DashboardChannelId is set.
     public string DashboardChannelId { get; init; } = "";
     public string PostgresConnectionString { get; init; } = "";
 
-    // Living dashboard embed: the host supplies the snapshot source; SyncKit posts on Ready and
-    // refreshes on the interval, diff-gated. Null provider = no dashboard loop. Interval is floored
-    // at 60s at the point of use. Set directly on BotConfig, or via SyncKitBotBuilder.WithDashboard*.
     public Func<CancellationToken, Task<DashboardSnapshot>>? DashboardProvider { get; init; }
     public TimeSpan DashboardRefreshInterval { get; init; } = TimeSpan.FromMinutes(5);
 
     public string CommitUrl(string version) => $"{RepoUrl}/commit/{version}";
 }
 
-// App-supplied slash command + handler. Set IntegrationTypes/ContextTypes on Definition
-// yourself; SyncKitBot only controls this for its own builtins (verify, updateserver).
 public sealed record BotCommand(
     ApplicationCommandProperties Definition,
     string Name,
     Func<SocketSlashCommandContext, Task> Handler,
     Func<SocketAutocompleteContext, Task>? AutocompleteHandler = null);
 
-// Lightweight context wrapper so app handlers don't depend on the raw socket type shape.
 public sealed record SocketSlashCommandContext(
     Discord.WebSocket.DiscordSocketClient Client,
     Discord.WebSocket.SocketSlashCommand Command);

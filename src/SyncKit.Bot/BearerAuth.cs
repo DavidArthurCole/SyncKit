@@ -4,8 +4,6 @@ using Microsoft.AspNetCore.Http;
 
 namespace SyncKit.Bot;
 
-// Constant-time bearer-secret gate. Empty secret always fails. Writes 401 + "unauthorized" on
-// failure so callers can early-return.
 internal static class BearerAuth {
     public static async Task<bool> CheckAsync(HttpContext ctx, string secret) {
         var header = ctx.Request.Headers.Authorization.ToString();

@@ -2,7 +2,6 @@ using YamlDotNet.RepresentationModel;
 
 namespace SyncKit.Agent;
 
-// A parsed deploy-agent.yaml. Each step entry is either a bare scalar ("git-pull") or a single-key map ("docker-pull: { ref: ... }").
 public sealed class AgentConfig {
     public string Name { get; init; } = "";
     public string Repo { get; init; } = "";
@@ -87,7 +86,6 @@ public sealed class AgentConfig {
         return string.IsNullOrEmpty(v) ? fallback : v;
     }
 
-    // Parses a Go-style duration (e.g. "1m", "5m0s", "30s", "1h"). Supports h/m/s units.
     internal static TimeSpan ParseDuration(string s) {
         var total = TimeSpan.Zero;
         var num = "";
@@ -108,8 +106,6 @@ public sealed class AgentConfig {
     }
 }
 
-// NotifyBotUrl, when set, is the bot endpoint the agent POSTs each DeployResponse to.
-// Bearer secret comes from the DEPLOY_NOTIFY_SECRET env var, not YAML.
 public sealed record WatchConfig(
     TimeSpan Interval,
     string NotifyBotUrl = "");

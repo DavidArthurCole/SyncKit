@@ -4,8 +4,6 @@ using SyncKit.Contract;
 
 namespace SyncKit.Bot;
 
-// Owns the dashboard message for one guild and ensures/tears down the GithubFeed webhook for a
-// pasted thread id. The bot no longer creates or archives threads; thread ids are set by paste.
 public sealed class ChannelHub(
     SocketGuild guild, ulong dashboardChannelId, string appName,
     ChannelStateStore store, ChannelConfigStore configStore) {
@@ -32,7 +30,6 @@ public sealed class ChannelHub(
                 _lastSignature = signature;
                 return;
             } catch (Discord.Net.HttpException ex) when (ex.HttpCode == System.Net.HttpStatusCode.NotFound) {
-                // Message was deleted out-of-band; fall through and re-create.
             }
         }
 
@@ -41,8 +38,6 @@ public sealed class ChannelHub(
         _lastSignature = signature;
     }
 
-    // Stores the pasted thread id as canonical, then ensures a webhook on the thread's parent channel.
-    // Returns the execute URL to paste into GitHub, or null if the thread/parent can't be resolved.
     public async Task<string?> EnsureWebhookForThreadAsync(ThreadKind kind, ulong threadId, CancellationToken ct) {
         var stateKind = ThreadStateKind(kind);
         await store.UpsertAsync(guild.Id.ToString(), appName, stateKind, threadId.ToString(), null, ct);
@@ -59,8 +54,6 @@ public sealed class ChannelHub(
         return $"https://discord.com/api/webhooks/{webhook.Id}/{webhook.Token}?thread_id={threadId}";
     }
 
-    // Deletes the thread's webhook and forgets both the webhook and thread-id state rows.
-    // Does not archive the thread; the bot no longer owns thread lifecycle. Never throws.
     public async Task TeardownWebhookForThreadAsync(ThreadKind kind, CancellationToken ct) {
         var stateKind = ThreadStateKind(kind);
         var threadState = await store.GetAsync(guild.Id.ToString(), appName, stateKind, ct);

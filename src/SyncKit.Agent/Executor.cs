@@ -4,8 +4,6 @@ using SyncKit.Contract;
 
 namespace SyncKit.Agent;
 
-// Runs an ordered list of steps and produces a DeployResponse. Mirrors the Go Executor: stop at the
-// first failure, accumulate output, track from/to identities, return a 20-line tail on failure.
 public sealed class Executor {
     public string Repo { get; init; } = "";
     public string RepoUrl { get; init; } = "";
@@ -15,9 +13,6 @@ public sealed class Executor {
     public DeployResponse Run() {
         var c = new RunContext { Repo = Repo, RepoUrl = RepoUrl, Run = Runner };
         foreach (var step in Steps) {
-            // Once a pull step finds nothing new, skip the rest of the pipeline except steps that
-            // opted into running anyway (e.g. a shell step redeploying something the pull doesn't
-            // gate, like a sibling binary built from the same repo).
             if (c.ShortCircuit && !step.RunOnShortCircuit) {
                 Console.WriteLine($"deploy: {step.GetType().Name}: skipped (short-circuit)");
                 continue;
@@ -27,7 +22,6 @@ public sealed class Executor {
             var err = step.Exec(c);
             if (err is not null) {
                 Console.WriteLine($"deploy: {step.GetType().Name}: failed: {err}");
-                // The error message is often the only signal, so it must survive the tail cut.
                 c.Out.Append('\n').Append(err).Append('\n');
                 return new DeployResponse {
                     FromHash = c.FromHash,
@@ -50,8 +44,6 @@ public sealed class Executor {
         };
     }
 
-    // Runs a command, returns (combined stdout+stderr, exitCode==0). Never throws: a spawn failure
-    // returns ok=false with the exception text, so a step decides how to report it.
     public static (string Output, bool Ok) RealRunner(string name, string[] args) {
         try {
             var psi = new ProcessStartInfo(name) {
@@ -62,9 +54,6 @@ public sealed class Executor {
             foreach (var a in args) psi.ArgumentList.Add(a);
             using var p = Process.Start(psi);
             if (p is null) return ($"failed to start {name}", false);
-            // Must read both streams concurrently: docker pull writes enough progress output to
-            // fill the stdout pipe buffer, and reading stdout/stderr sequentially deadlocks
-            // once the child blocks writing the un-drained stream.
             var stdoutTask = p.StandardOutput.ReadToEndAsync();
             var stderrTask = p.StandardError.ReadToEndAsync();
             Task.WaitAll(stdoutTask, stderrTask);

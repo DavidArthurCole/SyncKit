@@ -4,8 +4,6 @@ using SyncKit.Contract;
 
 namespace SyncKit.Bot;
 
-// Ports Go synckit.NewVersionHandler: bearer-authed POST /events/new-version. Empty secret
-// always 401. Constant-time secret compare. Decode failure 400. Handler error 500.
 public static class NewVersionHandler {
     public static RequestDelegate Build(string secret, Func<NewVersionEvent, Task> fn) {
         return async ctx => {

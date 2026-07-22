@@ -5,9 +5,6 @@ using SyncKit.Identity.Models;
 
 namespace SyncKit.Identity.Tests;
 
-// DB-gated: needs a real Postgres connection to exercise transactional insert/conflict behavior
-// in-process, matching the established pattern in EggIncognito/EggLedger's own identity tests
-// (plain Fact + early return when the env var is unset, no live Postgres in CI).
 public class IdentityResolverTests {
     private static string? ConnString => Environment.GetEnvironmentVariable("SYNCKIT_TEST_PG_CONN");
 

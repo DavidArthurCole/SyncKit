@@ -1,6 +1,3 @@
-// src/SyncKit.Identity.Host/wwwroot/synckit-login.js
-// Embeddable login widget popup: SyncKitAuth.login("https://<identity-host>", "discord").then(({ code }) => { ... }).
-// The returned code is single-use; redeem it server-side via POST /identity/redeem, never from page JS.
 (function () {
   "use strict";
 

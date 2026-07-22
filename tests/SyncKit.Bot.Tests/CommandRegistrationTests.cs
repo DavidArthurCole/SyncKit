@@ -22,8 +22,8 @@ public class CommandRegistrationTests {
     }
 
     [Theory]
-    [InlineData(new[] { "a", "b" }, "c", true)]   // role absent -> needs it
-    [InlineData(new[] { "a", "b" }, "b", false)]  // role present -> no-op
+    [InlineData(new[] { "a", "b" }, "c", true)]
+    [InlineData(new[] { "a", "b" }, "b", false)]
     public void NeedsRole_DetectsAbsence(string[] memberRoles, string roleId, bool expected) {
         Assert.Equal(expected, SyncKitBot.NeedsRole(memberRoles, roleId));
     }
@@ -36,9 +36,6 @@ public class CommandRegistrationTests {
 
     [Fact]
     public void FilterExtras_StillDropsBuiltins_WhenGlobalCommandsEnabled() {
-        // GlobalCommands only changes the Discord API call shape (bulk-overwrite vs
-        // per-command create), not the FilterExtras collision rule - verify the rule
-        // is independent of the flag.
         var extras = new[] { MakeCmd("verify"), MakeCmd("mystats") };
         var kept = SyncKitBot.FilterExtras(extras).Select(c => c.Name).ToArray();
         Assert.Equal(new[] { "mystats" }, kept);

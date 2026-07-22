@@ -1,8 +1,5 @@
 namespace SyncKit.Config;
 
-// Flat scalar/secret tier for SyncKit.Bot, loaded from a dotenv-format file with per-key
-// env-var fallback. Behavior toggles (GlobalCommands etc.) are NOT here - those are
-// SyncKitBotBuilder calls, see docs/bot-config.md.
 public sealed record BotConfigValues(
     string? Token,
     string? AppId,

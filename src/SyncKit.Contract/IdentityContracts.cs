@@ -2,9 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace SyncKit.Contract;
 
-// Wire shapes for SyncKit.Identity.Host's HTTP API. Consumed by SyncKit.Identity.Client and,
-// through it, by EggIncognito/EggLedger. Kept separate from the DB-facing models in
-// SyncKit.Identity so the wire contract can stay frozen independent of internal schema changes.
 
 public sealed class IdentityResolveRequest {
     [JsonPropertyName("provider")]

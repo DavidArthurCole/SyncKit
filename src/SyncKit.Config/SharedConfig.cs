@@ -3,9 +3,6 @@ using YamlDotNet.Serialization.NamingConventions;
 
 namespace SyncKit.Config;
 
-// The narrow, explicitly-scoped set of values that are genuinely identical across 2+ containers
-// in the stack today (copy-pasted per service block). NOT a config service, NOT a replacement
-// for per-app secrets (OAuth client ids/secrets, per-app DB credentials stay as env vars).
 public sealed record SharedConfig(
     string? SharedRoleId,
     string? DeployAgentUrl,
@@ -22,9 +19,6 @@ public sealed record SharedConfig(
         public string? AuthentikAuthority { get; set; }
     }
 
-    // Any field not present in the file (or the file itself missing) falls back to the
-    // equivalent env var via envFallback. Purely additive: no caller breaks if the file
-    // doesn't exist yet.
     public static SharedConfig Load(string path, Func<string, string?> envFallback) {
         Raw raw = new();
         if (File.Exists(path)) {

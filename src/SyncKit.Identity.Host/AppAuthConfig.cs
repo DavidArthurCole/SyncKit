@@ -4,9 +4,6 @@ namespace SyncKit.Identity.Host;
 
 public sealed record AppAuthConfig(string Origin, AuthentikOAuth OAuth);
 
-// Loads one AppAuthConfig per file in a directory, matching EggIncognito's device-discovery
-// file convention: flat Key=Value lines, one file per registered app. Fails fast on a malformed
-// or incomplete file - no silent skip, matching this repo's env-var convention.
 public static class AppAuthConfigLoader {
     private static readonly string[] RequiredKeys = ["Origin", "ClientId", "ClientSecret", "CallbackUrl"];
 

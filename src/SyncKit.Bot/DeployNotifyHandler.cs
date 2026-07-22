@@ -4,9 +4,6 @@ using SyncKit.Contract;
 
 namespace SyncKit.Bot;
 
-// Bearer-authed POST /internal/deploy-notify. Same auth contract as NewVersionHandler: empty
-// secret 401, bad token 401, decode failure 400, handler error 500. Body is a DeployResponse;
-// onDeploy renders and sends it to the configured thread.
 public static class DeployNotifyHandler {
     public static RequestDelegate Build(string secret, Func<DeployResponse, Task> onDeploy) {
         return async ctx => {

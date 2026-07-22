@@ -2,7 +2,6 @@ using Npgsql;
 
 namespace SyncKit.Db;
 
-// Ports Go db.Init: open and ping a Postgres connection.
 public static class Database {
     public static async Task<NpgsqlConnection> InitAsync(string connStr, CancellationToken ct = default) {
         if (string.IsNullOrEmpty(connStr))

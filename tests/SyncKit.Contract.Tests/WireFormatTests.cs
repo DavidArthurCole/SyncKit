@@ -5,7 +5,6 @@ using Xunit;
 namespace SyncKit.Contract.Tests;
 
 public class WireFormatTests {
-    // Golden string copied verbatim from Go contract_test.go TestDeployResponseRoundTrip.
     [Fact]
     public void DeployResponse_MatchesGoWire() {
         var dr = new DeployResponse { Ok = true, AlreadyUpToDate = true, FromHash = "abc1234", ToHash = "abc1234" };
@@ -15,15 +14,12 @@ public class WireFormatTests {
             json);
     }
 
-    // Bare OK=false must emit only {"ok":false} (everything else omitempty).
     [Fact]
     public void DeployResponse_Empty_EmitsOnlyOk() {
         var json = JsonSerializer.Serialize(new DeployResponse { Ok = false });
         Assert.Equal("{\"ok\":false}", json);
     }
 
-    // Golden string copied verbatim from Go contract_test.go TestNewVersionEventTags.
-    // Note: only the five Go fields set, so the superset extras must NOT appear.
     [Fact]
     public void NewVersionEvent_MatchesGoWire() {
         var e = new NewVersionEvent {

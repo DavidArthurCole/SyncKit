@@ -4,12 +4,9 @@ using SyncKit.Contract;
 
 namespace SyncKit.Agent;
 
-// Polls the deploy pipeline on an interval and forwards each notable DeployResponse to the bot.
-// A failure forwards once per distinct tail, reset on any non-failure, so a broken pipeline doesn't spam every tick.
 public sealed class Watcher(string name, TimeSpan interval, string notifyBotUrl, string notifySecret, Func<(DeployResponse, bool)> tryRun) {
     private string _lastFail = "";
 
-    // Test seam: override how the DeployResponse is delivered. Returns the HTTP status logged by Tick.
     internal Func<DeployResponse, int> Send = null!;
 
     public async Task RunAsync(CancellationToken ct) {
@@ -53,21 +50,15 @@ public sealed class Watcher(string name, TimeSpan interval, string notifyBotUrl,
         return (int)resp.StatusCode;
     }
 
-    // Maps a result to the DeployResponse to forward (null = silent) and updates dedupe state.
     internal DeployResponse? Decide(DeployResponse res) {
         if (res.Ok && res.AlreadyUpToDate) { _lastFail = ""; return null; }
         if (res.Ok) { _lastFail = ""; return res; }
-        // Transient infra/network failures (Docker daemon down, GHCR/registry timeouts) are not deploy
-        // failures the user can act on. Stay silent and leave _lastFail untouched so a genuine build
-        // failure once infra recovers still posts.
         if (IsTransient(res.Tail)) return null;
         if (res.Tail == _lastFail) return null;
         _lastFail = res.Tail ?? "";
         return res;
     }
 
-    // Substrings that mark an infra/network hiccup rather than an actionable deploy failure. Matched
-    // anywhere in the tail because docker/compose/pull errors nest the cause inside wrapper text.
     private static readonly string[] TransientMarkers = [
         "Cannot connect to the Docker daemon", // host stopped Docker
         "context deadline exceeded", // GHCR/registry pull timed out
@@ -79,7 +70,6 @@ public sealed class Watcher(string name, TimeSpan interval, string notifyBotUrl,
         "temporary failure in name resolution",
     ];
 
-    // True when the tail looks like a transient infra/network error (registry unreachable, daemon down).
     internal static bool IsTransient(string? tail) =>
         tail is not null && TransientMarkers.Any(m => tail.Contains(m, StringComparison.OrdinalIgnoreCase));
 }

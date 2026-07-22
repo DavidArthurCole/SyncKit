@@ -2,8 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace SyncKit.Contract;
 
-// Carries EggIncognito's full device-farm superset (Go's contract.NewVersionEvent has only the first five fields) so EggLedger ignores extras and EggIncognito keeps receiving them.
-// Extra fields are nullable / WhenWritingDefault so they vanish from output when unset.
 public sealed class NewVersionEvent {
     [JsonPropertyName("package")]
     public string Package { get; set; } = "";

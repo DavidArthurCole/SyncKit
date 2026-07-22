@@ -2,8 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace SyncKit.Contract;
 
-// Mirrors Go contract.DeployResponse. Field names frozen to the wire. All fields
-// except `ok` are omitempty in Go, so they serialize only when non-default here.
 public sealed class DeployResponse {
     [JsonPropertyName("ok")]
     public bool Ok { get; set; }

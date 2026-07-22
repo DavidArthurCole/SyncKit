@@ -51,8 +51,6 @@ public class TemplateRendererTests {
 
     [Fact]
     public void Render_UnknownVariable_ReturnsFallback() {
-        // Scriban renders unknown identifiers as empty by default rather than throwing;
-        // this test locks in that a genuinely broken script (bad syntax) still falls back safely.
         var result = TemplateRenderer.Render("{{ this is not valid scriban !! }}", "fallback text", new DeployResponse(), "app");
         Assert.Equal("fallback text", result);
     }

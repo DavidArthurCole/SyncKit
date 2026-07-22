@@ -21,8 +21,8 @@ public class WatcherTests {
     public void Decide_Failure_PostsOnceThenDedupes() {
         var w = New();
         var fail = new DeployResponse { Ok = false, Tail = "same error" };
-        Assert.NotNull(w.Decide(fail));   // first failure posts
-        Assert.Null(w.Decide(fail));      // identical tail deduped
+        Assert.NotNull(w.Decide(fail));
+        Assert.Null(w.Decide(fail));
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class WatcherTests {
         var fail = new DeployResponse { Ok = false, Tail = "err" };
         Assert.NotNull(w.Decide(fail));
         Assert.NotNull(w.Decide(new DeployResponse { Ok = true })); // success resets dedupe
-        Assert.NotNull(w.Decide(fail));                             // same failure posts again
+        Assert.NotNull(w.Decide(fail));
     }
 
     [Fact]
@@ -45,9 +45,9 @@ public class WatcherTests {
         var w = New();
         var real = new DeployResponse { Ok = false, Tail = "real build error" };
         var docker = new DeployResponse { Ok = false, Tail = "Cannot connect to the Docker daemon at unix:///var/run/docker.sock." };
-        Assert.NotNull(w.Decide(real));   // real failure posts
-        Assert.Null(w.Decide(docker));    // docker-down silent, leaves dedupe state alone
-        Assert.Null(w.Decide(real));      // same real failure still deduped
+        Assert.NotNull(w.Decide(real));
+        Assert.Null(w.Decide(docker));
+        Assert.Null(w.Decide(real));
     }
 
     [Theory]
@@ -64,8 +64,8 @@ public class WatcherTests {
         var w = New();
         var real = new DeployResponse { Ok = false, Tail = "real build error" };
         var transient = new DeployResponse { Ok = false, Tail = "Get \"https://ghcr.io/v2/\": context deadline exceeded" };
-        Assert.NotNull(w.Decide(real));      // real failure posts
-        Assert.Null(w.Decide(transient));    // transient silent, leaves dedupe state alone
-        Assert.Null(w.Decide(real));         // same real failure still deduped
+        Assert.NotNull(w.Decide(real));
+        Assert.Null(w.Decide(transient));
+        Assert.Null(w.Decide(real));
     }
 }

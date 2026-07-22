@@ -3,10 +3,8 @@ using System.Text.Json;
 
 namespace SyncKit.Auth;
 
-// Captured Discord user fields from /users/@me.
 public sealed record DiscordUser(string Id, string Username, string AvatarUrl);
 
-// Ports Go auth/discord.go. Discord OAuth2 authorization-code flow, identify scope.
 public static class DiscordOAuth {
     private const string AuthorizeUrl = "https://discord.com/api/oauth2/authorize";
     private const string TokenUrl = "https://discord.com/api/oauth2/token";
@@ -37,8 +35,6 @@ public static class DiscordOAuth {
         return ($"{AuthorizeUrl}?{qs}", state);
     }
 
-    // Exchanges code for a token, fetches /users/@me, calls storePending with state, a new
-    // 64-char session token, and the Discord user.
     public static async Task HandleCallbackAsync(
         string code, string state,
         Func<string, string, DiscordUser, Task> storePending,
@@ -79,7 +75,6 @@ public static class DiscordOAuth {
 
     public static string GenerateEncryptionKey() => RandomHex(32);
 
-    // Go randomHex(n): n random bytes -> 2n lowercase hex chars.
     public static string RandomHex(int n) {
         var b = RandomNumberGenerator.GetBytes(n);
         return Convert.ToHexStringLower(b);

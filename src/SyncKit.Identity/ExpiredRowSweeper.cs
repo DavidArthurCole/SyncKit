@@ -2,10 +2,6 @@ using Npgsql;
 
 namespace SyncKit.Identity;
 
-// Periodically deletes expired rows from oauth_states and login_codes. Both tables are written
-// by unauthenticated routes (/login/go, /login/callback) with no delete on the abandoned-flow
-// path, so without this sweep they grow unbounded. Mirrors SyncKit.Agent.Watcher's
-// PeriodicTimer + RunAsync(CancellationToken) shape.
 public sealed class ExpiredRowSweeper(NpgsqlDataSource dataSource, TimeSpan interval) {
     public async Task RunAsync(CancellationToken ct) {
         using var timer = new PeriodicTimer(interval);

@@ -4,16 +4,12 @@ using SyncKit.Contract;
 
 namespace SyncKit.Bot;
 
-// Scriban wrapper for admin-editable notification templates. Never throws - a bad template must
-// never break a real notification, so any parse/render failure falls back to the caller-supplied
-// default. Source-agnostic: callers pass a variable dictionary (see DeployVars/DashboardVars).
 public static class TemplateRenderer {
     public static string Render(string? template, string fallback, IReadOnlyDictionary<string, object?> vars) {
         if (string.IsNullOrEmpty(template)) return fallback;
         return TryRender(template, vars, out var rendered) ? rendered : fallback;
     }
 
-    // Embed-field variant: null/empty template yields "" (skip), a broken template also yields "".
     public static string RenderOrEmpty(string? template, IReadOnlyDictionary<string, object?> vars) {
         if (string.IsNullOrEmpty(template)) return "";
         return TryRender(template, vars, out var rendered) ? rendered : "";

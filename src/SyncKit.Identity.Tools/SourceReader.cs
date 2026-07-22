@@ -2,8 +2,6 @@ using Npgsql;
 
 namespace SyncKit.Identity.Tools;
 
-// Reads each app's own users/identities as-is. No writes, ever - this side of the tool is
-// read-only against production by design.
 public static class SourceReader {
     public static async Task<SourceSnapshot> ReadEggIncognitoAsync(string connString, CancellationToken ct) {
         await using var db = NpgsqlDataSource.Create(connString);
@@ -29,9 +27,6 @@ public static class SourceReader {
         return new SourceSnapshot(users, identities);
     }
 
-    // EggLedger quirks normalized here: avatar_url -> Avatar, created_at BIGINT unix-seconds ->
-    // DateTimeOffset, no role column (null - resolved to viewer/admin-allowlist downstream same
-    // as any brand-new user would be).
     public static async Task<SourceSnapshot> ReadEggLedgerAsync(string connString, CancellationToken ct) {
         await using var db = NpgsqlDataSource.Create(connString);
         await using var conn = await db.OpenConnectionAsync(ct);

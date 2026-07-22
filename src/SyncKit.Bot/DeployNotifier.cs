@@ -4,9 +4,6 @@ using SyncKit.Contract;
 
 namespace SyncKit.Bot;
 
-// Renders a DeployResponse into the configured DeployNotifications thread as a real bot message.
-// Resolves a per-event MessageSpec (embed or ComponentsV2 + mentions); missing/unresolvable thread
-// is a silent no-op; a genuine send failure propagates so the caller can surface a 500.
 public sealed class DeployNotifier(
     ChannelConfigStore configStore, DiscordSocketClient client, ulong guildId, string appName) {
 

@@ -2,17 +2,12 @@ using System.Text.Json;
 
 namespace SyncKit.Identity.Host;
 
-// Proxies Authentik source icons so consuming apps get a token-free URL.
-// Authentik gates media behind a short-lived signed token, so we fetch through the flow
-// executor (which mints a fresh token each call), download the bytes, and cache them for
-// the process lifetime. Icons are near-static; restart to refresh.
 public sealed class IconCache(IHttpClientFactory httpClientFactory, string authority) {
     private readonly string authority = authority.TrimEnd('/');
     private readonly Dictionary<string, CachedIcon> cache = new(StringComparer.OrdinalIgnoreCase);
 
     public sealed record CachedIcon(byte[] Bytes, string ContentType);
 
-    // A concurrent cache-miss may fetch the same icon twice; both results are identical so last write wins.
     public async Task<CachedIcon?> GetAsync(string provider, CancellationToken ct) {
         lock (cache) {
             if (cache.TryGetValue(provider, out var hit)) return hit;

@@ -11,8 +11,6 @@ using SyncKit.Identity.Client;
 
 namespace SyncKit.Auth;
 
-// Options for AuthentikAspNetAuth.AddIfConfigured. CookieScheme/claim-type strings stay
-// per-app so an app's existing cookie name and claim types never change on cutover.
 public sealed record AuthentikAspNetAuthOptions {
     public required string CookieScheme { get; init; }
     public required string Authority { get; init; }
@@ -25,8 +23,6 @@ public sealed record AuthentikAspNetAuthOptions {
     public Func<IdentityResolveResponse, ClaimsIdentity, HttpContext, Task>? OnResolved { get; init; }
 }
 
-// Shared Authentik OIDC challenge-scheme wiring for EggIncognito and EggLedger. Distinct from
-// AuthentikOAuth.cs, the hand-rolled PKCE flow used only by Identity.Host's login widget.
 public static class AuthentikAspNetAuth {
     public static bool AddIfConfigured(AuthenticationBuilder builder, AuthentikAspNetAuthOptions? options) {
         if (options is null) return false;
@@ -64,9 +60,6 @@ public static class AuthentikAspNetAuth {
                 }
                 var discordId = principal.FindFirstValue("discord_id");
                 var username = principal.FindFirstValue("preferred_username") ?? principal.FindFirstValue(ClaimTypes.Name);
-                // Resolved lazily per-request, not captured at registration time: EggIncognito
-                // registers IdentityApiClient via AddHttpClient<T> (typed client, only resolvable
-                // through DI, never by eagerly building a throwaway ServiceProvider mid-registration).
                 var identityClient = ctx.HttpContext.RequestServices.GetRequiredService<IdentityApiClient>();
                 var result = await identityClient.ResolveAsync(
                     "authentik", sub, discordId, username, avatar: null, ctx.HttpContext.RequestAborted);
@@ -94,9 +87,6 @@ public static class AuthentikAspNetAuth {
         return true;
     }
 
-    // Shared cookie OnValidatePrincipal hook: rejects and signs out a principal whose sid claim
-    // is revoked (Authentik back-channel logout), and refreshes the role claim from SyncKit's
-    // live users.role column so a role change takes effect on the next request instead of next login.
     public static async Task OnValidatePrincipalCheckRevoked(
         CookieValidatePrincipalContext ctx, IdentityApiClient identity, string userIdClaimType, string roleClaimType) {
         var sid = ctx.Principal?.FindFirstValue("sid");

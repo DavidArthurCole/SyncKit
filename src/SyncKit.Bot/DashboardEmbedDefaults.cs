@@ -2,9 +2,6 @@ using SyncKit.Contract;
 
 namespace SyncKit.Bot;
 
-// Default dashboard embed, expressed as a templated EmbedSpec so it renders through the same
-// EmbedRenderer path as the deploy embeds and stays fully overridable via bot_channel_config.
-// Reproduces the look of the retired DefaultEmbeds.Dashboard.
 public static class DashboardEmbedDefaults {
     public static readonly EmbedSpec Default = new(
         Color: 0x5865F2,

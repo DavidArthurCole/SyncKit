@@ -3,9 +3,6 @@ using Npgsql;
 
 namespace SyncKit.Identity;
 
-// Issues and redeems single-use, short-lived codes. Redemption is atomic (UPDATE ... WHERE
-// redeemed_at IS NULL AND expires_at > now() RETURNING) so two concurrent redeem attempts for
-// the same code can never both succeed.
 public sealed record RedeemedLogin(Guid UserId, bool IsNew);
 
 public sealed class LoginCodeStore(NpgsqlDataSource dataSource, TimeSpan? ttl = null) {

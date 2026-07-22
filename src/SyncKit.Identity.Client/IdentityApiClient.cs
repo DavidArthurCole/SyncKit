@@ -3,9 +3,6 @@ using SyncKit.Contract;
 
 namespace SyncKit.Identity.Client;
 
-// Server-to-server client for SyncKit.Identity.Host. Construct with an HttpClient whose
-// BaseAddress is the host's URL and whose default Authorization header is set to
-// "Bearer {IDENTITY_API_SECRET}".
 public sealed class IdentityApiClient(HttpClient http) {
     public async Task<IdentityResolveResponse> ResolveAsync(
         string provider, string subject, string? discordId, string? username, string? avatar, CancellationToken ct) {

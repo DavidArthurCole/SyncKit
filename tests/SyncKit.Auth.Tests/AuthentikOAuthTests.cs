@@ -58,7 +58,6 @@ public class AuthentikOAuthTests {
 
     [Fact]
     public void CodeChallenge_IsS256OfVerifier() {
-        // RFC 7636 Appendix B test vector.
         const string verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
         const string expectedChallenge = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
 

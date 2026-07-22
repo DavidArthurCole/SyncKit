@@ -1,12 +1,3 @@
-// synckit-agent (C#): generic host-side deploy agent. A consumer supplies a yaml pipeline + env vars;
-// no consumer code needed. Ports the Go cmd/synckit-agent. Adds the portainer-update-stack step.
-//
-// Env:
-//   DEPLOY_AGENT_SECRET  bearer secret for POST /deploy (required)
-//   DEPLOY_AGENT_PORT    listen port (default 7777)
-//   DEPLOY_AGENT_CONFIG  yaml path (default /etc/synckit/deploy-agent.yaml)
-//   DEPLOY_NOTIFY_SECRET bearer secret for POSTing DeployResponse to the bot (watch notify)
-// Plus any env the steps read (PORTAINER_API_URL/KEY/STACK_ID/ENDPOINT_ID, etc).
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
@@ -42,7 +33,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls($"http://*:{port}");
 var app = builder.Build();
 
-// POST /deploy: bearer-auth (constant-time), single-flight, returns the DeployResponse JSON.
 app.MapPost("/deploy", (HttpRequest req) => {
     var token = (req.Headers.Authorization.ToString() ?? "").Replace("Bearer ", "");
     var ok = !string.IsNullOrEmpty(secret) && CryptographicOperations.FixedTimeEquals(

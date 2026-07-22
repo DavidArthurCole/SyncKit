@@ -2,14 +2,11 @@ using Microsoft.AspNetCore.Http;
 
 namespace SyncKit.Auth;
 
-// Seam over the consumer's sessions table. Returns (found, discordId, expiresAt unix seconds).
 public interface ISessionStore {
     Task<(bool Found, string DiscordId, long ExpiresAt)> LookupAsync(string token, CancellationToken ct);
     Task TouchAsync(string token, long newExpiresAt, CancellationToken ct);
 }
 
-// Ports Go auth.RequireAuth. Validates the Bearer token, 401 on missing/unknown/expired,
-// else sets the X-Discord-ID header and slides expiry to now+30 days.
 public sealed class RequireAuth {
     private readonly RequestDelegate _next;
     private readonly ISessionStore _store;
@@ -19,7 +16,6 @@ public sealed class RequireAuth {
         _store = store;
     }
 
-    // Go strings.TrimPrefix(header, "Bearer "): only strips when the prefix is present.
     public static string ExtractToken(string header) =>
         header.StartsWith("Bearer ", StringComparison.Ordinal) ? header["Bearer ".Length..] : header;
 

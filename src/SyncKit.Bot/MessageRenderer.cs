@@ -3,19 +3,14 @@ using SyncKit.Contract;
 
 namespace SyncKit.Bot;
 
-// The result of rendering a MessageSpec: exactly one of Embed / Components is set. Components use
-// the ComponentsV2 flag and can ping via AllowedMentions; embeds render mentions silently.
 public sealed record RenderedMessage(
     Embed? Embed, MessageComponent? Components, bool IsComponentsV2, AllowedMentions AllowedMentions);
 
 public static class MessageRenderer {
     private const int MaxTextDisplay = 4000;
-    // A single ContainerBuilder holds the whole block list; keep well under Discord's per-message
-    // component ceiling. Blocks beyond this are dropped rather than risking a rejected send.
     private const int MaxComponents = 10;
 
     public static RenderedMessage Render(MessageSpec spec, IReadOnlyDictionary<string, object?> vars) {
-        // JSON deserialization can leave the inner lists null on a partially-specified mentions object.
         var mentions = spec.Mentions is { } m
             ? new MentionSpec(m.Users ?? [], m.Roles ?? [], m.Everyone)
             : new MentionSpec([], [], false);
@@ -67,7 +62,6 @@ public static class MessageRenderer {
         return allowed;
     }
 
-    // Injects a `pings` token (space-joined mention strings) so a template can place the ping text.
     private static Dictionary<string, object?> WithPings(
         IReadOnlyDictionary<string, object?> vars, MentionSpec m) {
         var parts = new List<string>();

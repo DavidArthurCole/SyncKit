@@ -6,14 +6,6 @@ using SyncKit.Db;
 
 namespace SyncKit.Bot;
 
-// Ports Go bot.Start + registerCommands + handleInteraction + ensureSharedRole.
-// Built-ins: /verify (public), /updateserver (Administrator-gated). Extra commands whose
-// names collide with built-ins are dropped. Guild-scoped registration.
-//
-// Requests the GuildMembers gateway intent to populate the member cache. GuildMembers is
-// privileged: the bot application must have "Server Members Intent" enabled in the Discord
-// Developer Portal (Bot tab), or client.StartAsync fails to connect - the portal toggle is
-// required in addition to the code-side intent flag below, and is outside this repo's control.
 public sealed class SyncKitBot : IAsyncDisposable {
     public static readonly string[] BuiltinCommandNames = ["verify", "updateserver"];
 
@@ -28,7 +20,6 @@ public sealed class SyncKitBot : IAsyncDisposable {
 
     public Discord.WebSocket.DiscordSocketClient Client { get; }
 
-    // Null until the channel hub is enabled (dashboard channel set + Postgres) and the guild is ready.
     public BotConfigService? ConfigService { get; private set; }
 
     private SyncKitBot(BotConfig cfg, DiscordSocketClient client, SyncKitBotBuilder? builder) {
@@ -41,7 +32,6 @@ public sealed class SyncKitBot : IAsyncDisposable {
             .ToDictionary(c => c.Name, c => c.AutocompleteHandler!);
     }
 
-    // Null until ChannelHub is enabled (DashboardChannelId set) and the guild is ready.
     public async Task UpdateDashboardAsync(DashboardSnapshot snapshot, CancellationToken ct = default) {
         if (_channelHub is not null) await _channelHub.UpdateDashboardAsync(snapshot, ct);
     }
@@ -53,7 +43,6 @@ public sealed class SyncKitBot : IAsyncDisposable {
         if (_channelHub is not null) await _channelHub.TeardownWebhookForThreadAsync(kind, ct);
     }
 
-    // Returns null (a no-op bot) when Token is empty, mirroring Go's (noop, nil).
     public static async Task<SyncKitBot?> StartAsync(BotConfig cfg, SyncKitBotBuilder? builder = null) {
         if (string.IsNullOrEmpty(cfg.Token))
             return null;
@@ -81,8 +70,6 @@ public sealed class SyncKitBot : IAsyncDisposable {
     public static bool NeedsRole(IReadOnlyCollection<string> memberRoles, string roleId) =>
         !memberRoles.Contains(roleId);
 
-    // Go used the raw string; a malformed snowflake should log-and-skip, not throw out of the
-    // best-effort Ready handlers. Returns false (and logs) when the id is empty or non-numeric.
     private static bool TryParseSnowflake(string value, string label, out ulong id) {
         if (ulong.TryParse(value, out id)) return true;
         Console.Error.WriteLine($"bot: invalid {label} snowflake: \"{value}\"");
@@ -96,9 +83,6 @@ public sealed class SyncKitBot : IAsyncDisposable {
         try { await InitChannelHubAsync(); } catch (Exception ex) { Console.Error.WriteLine($"bot: channel hub: {ex.Message}"); }
     }
 
-    // Requires GuildMembers intent (privileged - must be enabled in the Developer Portal under
-    // Bot -> Privileged Gateway Intents -> Server Members Intent) or the gateway rejects the
-    // connection. Populates the local member cache that IsGuildAdmin's guild.GetUser reads.
     private async Task DownloadGuildMembersAsync() {
         if (string.IsNullOrEmpty(_cfg.GuildId)) return;
         if (!TryParseSnowflake(_cfg.GuildId, "guild id", out var guildId)) return;
@@ -107,8 +91,6 @@ public sealed class SyncKitBot : IAsyncDisposable {
         await guild.DownloadUsersAsync();
     }
 
-    // Additive/config-gated: DashboardChannelId unset (env or bot_channel_config override) means
-    // _channelHub stays null and every dependent call becomes a no-op, matching today's behavior.
     private async Task InitChannelHubAsync() {
         if (string.IsNullOrEmpty(_cfg.GuildId)) return;
         if (!TryParseSnowflake(_cfg.GuildId, "guild id", out var guildId)) return;
@@ -147,9 +129,6 @@ public sealed class SyncKitBot : IAsyncDisposable {
         }
     }
 
-    // SyncKit owns the "living" cadence: an initial refresh on Ready, then a diff-gated periodic
-    // refresh. The host supplies the snapshot via the provider; ChannelHub skips the edit when the
-    // content is unchanged, so a redundant tick costs nothing.
     private async Task RunDashboardLoopAsync(
         Func<CancellationToken, Task<DashboardSnapshot>> provider, TimeSpan interval, CancellationToken ct) {
         try {
@@ -293,7 +272,6 @@ public sealed class SyncKitBot : IAsyncDisposable {
         }
     }
 
-    // Ports Go handleUpdateServer: admin gate, configured gate, defer, call agent, edit/followup.
     private async Task HandleUpdateServerAsync(SocketSlashCommand cmd) {
         var isAdmin = cmd.User is SocketGuildUser gu && gu.GuildPermissions.Administrator;
         if (!isAdmin) {
