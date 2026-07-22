@@ -6,54 +6,12 @@
   @if (_profile is null) {
     <p class="skp-muted">Loading...</p>
   } else {
-    <div class="skp-avatar-row">
-      <div class="skp-avatar-wrap">
-        <img class="skp-avatar" src="@(_profile.Avatar ?? "")" alt="Profile picture" />
-        <label class="skp-avatar-upload" title="Upload image">
-          <InputFile class="skp-avatar-input" OnChange="OnFileSelected" accept="image/png,image/jpeg,image/webp" />
-          @UploadIconSvg
-        </label>
-      </div>
-      @if (_avatarError is not null) {
-        <p class="skp-error">@_avatarError</p>
-      }
-    </div>
-
-    @if (_banner is not null) {
-      <p class="skp-banner">@_banner</p>
-    }
-
-    <ul class="skp-identity-list">
-      @foreach (var identity in _profile.Identities) {
-        <li class="skp-identity-row">
-          <span class="skp-provider-glyph">@ProviderIconSvg(identity.Provider)</span>
-          @if (!string.IsNullOrEmpty(identity.Avatar)) {
-            <button type="button" class="skp-avatar-chip" title="Use this picture" @onclick="() => SelectAvatarAsync(identity)">
-              <img class="skp-thumb" src="@identity.Avatar" alt="" />
-            </button>
-          }
-          <span class="skp-identity-name">@(identity.Username ?? identity.Subject)</span>
-          <span class="skp-identity-date">@identity.LinkedAt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</span>
-          <button type="button" class="skp-unlink-btn" disabled="@(_profile.Identities.Count <= 1)"
-                  title="@(_profile.Identities.Count <= 1 ? "Cannot unlink the last identity" : "Unlink")"
-                  @onclick="() => UnlinkAsync(identity)">
-            @UnlinkIconSvg
-          </button>
-        </li>
-      }
-    </ul>
-
-    <div class="skp-link-row">
-      @foreach (var provider in KnownProviders) {
-        var linked = _profile.Identities.Any(i => i.Provider == provider);
-        <a class="skp-link-provider @(linked ? "skp-link-provider-linked" : "")"
-           href="@(linked ? "#" : Identity.StartLinkUrl(provider, ReturnUrl))"
-           aria-disabled="@linked">
-          @ProviderIconSvg(provider)
-          <span>@(linked ? $"{Cap(provider)} linked" : $"Link {Cap(provider)}")</span>
-        </a>
-      }
-    </div>
+    var avatarFragment = (AvatarTemplate ?? DefaultAvatarTemplate)(new ProfileAvatarContext(_profile.Avatar, _avatarError, EventCallback.Factory.Create<InputFileChangeEventArgs>(this, OnFileSelected)));
+    var identitiesFragment = (IdentitiesTemplate ?? DefaultIdentitiesTemplate)(BuildIdentitiesContext());
+    var linkRowFragment = (LinkRowTemplate ?? DefaultLinkRowTemplate)(BuildLinkRowContext());
+    @avatarFragment
+    @identitiesFragment
+    @linkRowFragment
   }
 </section>
 
@@ -61,11 +19,168 @@
     [Parameter, EditorRequired] public string SessionToken { get; set; } = "";
     [Parameter, EditorRequired] public string ReturnUrl { get; set; } = "";
 
+    [Parameter] public RenderFragment<ProfileAvatarContext>? AvatarTemplate { get; set; }
+    [Parameter] public RenderFragment<ProfileIdentitiesContext>? IdentitiesTemplate { get; set; }
+    [Parameter] public RenderFragment<ProfileLinkRowContext>? LinkRowTemplate { get; set; }
+
     private static readonly string[] KnownProviders = ["discord", "google", "microsoft", "github"];
 
     private ProfileResponse? _profile;
     private string? _banner;
     private string? _avatarError;
+
+    protected override async Task OnInitializedAsync() {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() {
+        _profile = await Identity.GetProfileAsync(SessionToken, CancellationToken.None);
+    }
+
+    private async Task UnlinkAsync(ProfileIdentityResponse identity) {
+        var ok = await Identity.UnlinkIdentityAsync(SessionToken, identity.Provider, identity.Subject, CancellationToken.None);
+        _banner = ok ? "Unlinked." : "Could not unlink that identity.";
+        await LoadAsync();
+    }
+
+    private async Task SelectAvatarAsync(ProfileIdentityResponse identity) {
+        var ok = await Identity.SelectAvatarAsync(SessionToken, identity.Provider, identity.Subject, CancellationToken.None);
+        _avatarError = ok ? null : "Could not use that picture.";
+        await LoadAsync();
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e) {
+        _avatarError = null;
+        var file = e.File;
+        if (file.Size > 2 * 1024 * 1024) {
+            _avatarError = "File too large (max 2 MB).";
+            return;
+        }
+        await using var stream = file.OpenReadStream(2 * 1024 * 1024);
+        var ok = await Identity.UploadAvatarAsync(SessionToken, stream, file.Name, file.ContentType, CancellationToken.None);
+        if (!ok) _avatarError = "Upload failed: unsupported file type or too large.";
+        await LoadAsync();
+    }
+
+    private ProfileIdentitiesContext BuildIdentitiesContext() {
+        var items = _profile!.Identities.Select(identity => new ProfileIdentityItem(
+            identity,
+            _profile.Identities.Count > 1,
+            EventCallback.Factory.Create(this, () => SelectAvatarAsync(identity)),
+            EventCallback.Factory.Create(this, () => UnlinkAsync(identity))
+        )).ToList();
+        return new ProfileIdentitiesContext(items, _banner);
+    }
+
+    private ProfileLinkRowContext BuildLinkRowContext() {
+        var items = KnownProviders.Select(provider => new ProfileLinkItem(
+            provider,
+            _profile!.Identities.Any(i => i.Provider == provider),
+            Identity.StartLinkUrl(provider, ReturnUrl)
+        )).ToList();
+        return new ProfileLinkRowContext(items);
+    }
+
+    private static string Cap(string s) => char.ToUpperInvariant(s[0]) + s[1..];
+
+    private static RenderFragment<ProfileAvatarContext> DefaultAvatarTemplate => ctx => builder => {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "skp-avatar-row");
+        builder.OpenElement(2, "div");
+        builder.AddAttribute(3, "class", "skp-avatar-wrap");
+        builder.OpenElement(4, "img");
+        builder.AddAttribute(5, "class", "skp-avatar");
+        builder.AddAttribute(6, "src", ctx.AvatarUrl ?? "");
+        builder.AddAttribute(7, "alt", "Profile picture");
+        builder.CloseElement();
+        builder.OpenElement(8, "label");
+        builder.AddAttribute(9, "class", "skp-avatar-upload");
+        builder.AddAttribute(10, "title", "Upload image");
+        builder.OpenComponent<InputFile>(11);
+        builder.AddAttribute(12, "class", "skp-avatar-input");
+        builder.AddAttribute(13, "OnChange", ctx.OnFileSelected);
+        builder.AddAttribute(14, "accept", "image/png,image/jpeg,image/webp");
+        builder.CloseComponent();
+        builder.AddContent(15, UploadIconSvg);
+        builder.CloseElement();
+        builder.CloseElement();
+        if (ctx.Error is not null) {
+            builder.OpenElement(16, "p");
+            builder.AddAttribute(17, "class", "skp-error");
+            builder.AddContent(18, ctx.Error);
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    };
+
+    private static RenderFragment<ProfileIdentitiesContext> DefaultIdentitiesTemplate => ctx => builder => {
+        if (ctx.Banner is not null) {
+            builder.OpenElement(0, "p");
+            builder.AddAttribute(1, "class", "skp-banner");
+            builder.AddContent(2, ctx.Banner);
+            builder.CloseElement();
+        }
+        builder.OpenElement(3, "ul");
+        builder.AddAttribute(4, "class", "skp-identity-list");
+        var seq = 5;
+        foreach (var item in ctx.Items) {
+            builder.OpenElement(seq++, "li");
+            builder.AddAttribute(seq++, "class", "skp-identity-row");
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "skp-provider-glyph");
+            builder.AddContent(seq++, ProviderIconSvg(item.Identity.Provider));
+            builder.CloseElement();
+            if (!string.IsNullOrEmpty(item.Identity.Avatar)) {
+                builder.OpenElement(seq++, "button");
+                builder.AddAttribute(seq++, "type", "button");
+                builder.AddAttribute(seq++, "class", "skp-avatar-chip");
+                builder.AddAttribute(seq++, "title", "Use this picture");
+                builder.AddAttribute(seq++, "onclick", item.OnSelectAvatar);
+                builder.OpenElement(seq++, "img");
+                builder.AddAttribute(seq++, "class", "skp-thumb");
+                builder.AddAttribute(seq++, "src", item.Identity.Avatar);
+                builder.AddAttribute(seq++, "alt", "");
+                builder.CloseElement();
+                builder.CloseElement();
+            }
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "skp-identity-name");
+            builder.AddContent(seq++, item.Identity.Username ?? item.Identity.Subject);
+            builder.CloseElement();
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "skp-identity-date");
+            builder.AddContent(seq++, item.Identity.LinkedAt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+            builder.CloseElement();
+            builder.OpenElement(seq++, "button");
+            builder.AddAttribute(seq++, "type", "button");
+            builder.AddAttribute(seq++, "class", "skp-unlink-btn");
+            builder.AddAttribute(seq++, "disabled", !item.CanUnlink);
+            builder.AddAttribute(seq++, "title", item.CanUnlink ? "Unlink" : "Cannot unlink the last identity");
+            builder.AddAttribute(seq++, "onclick", item.OnUnlink);
+            builder.AddContent(seq++, UnlinkIconSvg);
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    };
+
+    private static RenderFragment<ProfileLinkRowContext> DefaultLinkRowTemplate => ctx => builder => {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "skp-link-row");
+        var seq = 2;
+        foreach (var item in ctx.Items) {
+            builder.OpenElement(seq++, "a");
+            builder.AddAttribute(seq++, "class", $"skp-link-provider {(item.Linked ? "skp-link-provider-linked" : "")}");
+            builder.AddAttribute(seq++, "href", item.Linked ? "#" : item.LinkUrl);
+            builder.AddAttribute(seq++, "aria-disabled", item.Linked);
+            builder.AddContent(seq++, ProviderIconSvg(item.Provider));
+            builder.OpenElement(seq++, "span");
+            builder.AddContent(seq++, item.Linked ? $"{Cap(item.Provider)} linked" : $"Link {Cap(item.Provider)}");
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    };
 
     private static RenderFragment UploadIconSvg => builder => {
         builder.OpenElement(0, "svg");
@@ -156,41 +271,6 @@
         },
         _ => builder => { }
     };
-
-    protected override async Task OnInitializedAsync() {
-        await LoadAsync();
-    }
-
-    private async Task LoadAsync() {
-        _profile = await Identity.GetProfileAsync(SessionToken, CancellationToken.None);
-    }
-
-    private async Task UnlinkAsync(ProfileIdentityResponse identity) {
-        var ok = await Identity.UnlinkIdentityAsync(SessionToken, identity.Provider, identity.Subject, CancellationToken.None);
-        _banner = ok ? "Unlinked." : "Could not unlink that identity.";
-        await LoadAsync();
-    }
-
-    private async Task SelectAvatarAsync(ProfileIdentityResponse identity) {
-        var ok = await Identity.SelectAvatarAsync(SessionToken, identity.Provider, identity.Subject, CancellationToken.None);
-        _avatarError = ok ? null : "Could not use that picture.";
-        await LoadAsync();
-    }
-
-    private async Task OnFileSelected(InputFileChangeEventArgs e) {
-        _avatarError = null;
-        var file = e.File;
-        if (file.Size > 2 * 1024 * 1024) {
-            _avatarError = "File too large (max 2 MB).";
-            return;
-        }
-        await using var stream = file.OpenReadStream(2 * 1024 * 1024);
-        var ok = await Identity.UploadAvatarAsync(SessionToken, stream, file.Name, file.ContentType, CancellationToken.None);
-        if (!ok) _avatarError = "Upload failed: unsupported file type or too large.";
-        await LoadAsync();
-    }
-
-    private static string Cap(string s) => char.ToUpperInvariant(s[0]) + s[1..];
 
     public void Dispose() {
     }
