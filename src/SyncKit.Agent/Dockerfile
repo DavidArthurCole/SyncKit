@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.7-labs
 # Build context is the repo root (needs the whole solution for ProjectReferences).
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
