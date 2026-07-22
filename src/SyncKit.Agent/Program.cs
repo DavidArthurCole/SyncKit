@@ -43,6 +43,15 @@ app.MapPost("/deploy", (HttpRequest req) => {
     return Results.Json(res);
 });
 
+if (cfg.Watch is { } watch) {
+    var notifySecret = Environment.GetEnvironmentVariable("DEPLOY_NOTIFY_SECRET") ?? "";
+    if (string.IsNullOrEmpty(watch.NotifyBotUrl))
+        Console.WriteLine("synckit-agent: watch notify disabled: notify_bot_url not configured");
+    var watcher = new Watcher(cfg.Name, watch.Interval, watch.NotifyBotUrl, notifySecret, handler.TryRun);
+    _ = watcher.RunAsync(app.Lifetime.ApplicationStopping);
+    Console.WriteLine($"synckit-agent: watching every {watch.Interval}");
+}
+
 Console.WriteLine($"synckit-agent: {cfg.Name} listening on :{port} ({cfg.Steps.Count} steps)");
 app.Run();
 return 0;

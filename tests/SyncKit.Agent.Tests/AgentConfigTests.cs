@@ -4,13 +4,16 @@ namespace SyncKit.Agent.Tests;
 
 public class AgentConfigTests {
     [Fact]
-    public void Parse_FullPipeline_DecodesSteps() {
+    public void Parse_FullPipeline_DecodesStepsAndWatch() {
         const string yaml = """
         name: EggIncognito
         repo_url: https://github.com/DavidArthurCole/EggIncognito
         steps:
           - docker-pull: { ref: ghcr.io/x/y:latest, container: y }
           - portainer-update-stack
+        watch:
+          interval: 1m
+          notify_bot_url: https://bot.example/internal/deploy-notify
         """;
         var cfg = AgentConfig.Parse(yaml);
 
@@ -19,6 +22,9 @@ public class AgentConfigTests {
         Assert.IsType<DockerPull>(cfg.Steps[0]);
         Assert.IsType<PortainerUpdateService>(cfg.Steps[1]);
         Assert.Equal("ghcr.io/x/y:latest", ((DockerPull)cfg.Steps[0]).Ref);
+        Assert.NotNull(cfg.Watch);
+        Assert.Equal(TimeSpan.FromMinutes(1), cfg.Watch!.Interval);
+        Assert.Equal("https://bot.example/internal/deploy-notify", cfg.Watch.NotifyBotUrl);
     }
 
     [Fact]
@@ -54,6 +60,14 @@ public class AgentConfigTests {
         var cfg = AgentConfig.Parse("name: t\nsteps:\n  - shell: { run: echo hi }\n");
         var step = Assert.IsType<Shell>(cfg.Steps[0]);
         Assert.False(step.RunOnShortCircuit);
+    }
+
+    [Fact]
+    public void Parse_AppCallbackStep_DecodesUrlAndSecretEnv() {
+        var cfg = AgentConfig.Parse("name: t\nsteps:\n  - app-callback: { url_env: EGI_RUNNER_DEPLOY_URL, secret_env: EGI_RUNNER_DEPLOY_SECRET }\n");
+        var step = Assert.IsType<AppCallback>(cfg.Steps[0]);
+        Assert.Equal("EGI_RUNNER_DEPLOY_URL", step.UrlEnv);
+        Assert.Equal("EGI_RUNNER_DEPLOY_SECRET", step.SecretEnv);
     }
 
     [Fact]

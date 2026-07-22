@@ -7,6 +7,7 @@ public sealed class AgentConfig {
     public string Repo { get; init; } = "";
     public string RepoUrl { get; init; } = "";
     public IReadOnlyList<IStep> Steps { get; init; } = [];
+    public WatchConfig? Watch { get; init; }
 
     public static AgentConfig Parse(string yaml) {
         var stream = new YamlStream();
@@ -21,11 +22,25 @@ public sealed class AgentConfig {
                 steps.Add(DecodeStep(node));
         }
 
+        WatchConfig? watch = null;
+        if (TryGet(root, "watch") is YamlMappingNode w) {
+            var intervalStr = Scalar(TryGet(w, "interval"));
+            if (string.IsNullOrEmpty(intervalStr))
+                throw new FormatException("watch.interval is required");
+            var interval = ParseDuration(intervalStr);
+            if (interval <= TimeSpan.Zero)
+                throw new FormatException($"watch.interval must be positive, got {intervalStr}");
+            watch = new WatchConfig(
+                interval,
+                Scalar(TryGet(w, "notify_bot_url")) ?? "");
+        }
+
         return new AgentConfig {
             Name = Scalar(TryGet(root, "name")) ?? "",
             Repo = Scalar(TryGet(root, "repo")) ?? "",
             RepoUrl = Scalar(TryGet(root, "repo_url")) ?? "",
             Steps = steps,
+            Watch = watch,
         };
     }
 
@@ -46,6 +61,7 @@ public sealed class AgentConfig {
                 "docker-build" => new DockerBuild { Tag = Field(p, "tag") },
                 "container-recreate" => new ContainerRecreate { Name = Field(p, "name") },
                 "webhook" => new Webhook { Url = Field(p, "url"), UrlEnv = Field(p, "url_env") },
+                "app-callback" => new AppCallback { UrlEnv = Field(p, "url_env"), SecretEnv = Field(p, "secret_env") },
                 "shell" => new Shell { Run = Field(p, "run"), Dir = Field(p, "dir"), Always = Field(p, "always") == "true" },
                 "portainer-update-stack" => new PortainerUpdateService {
                     UrlEnv = FieldOr(p, "url_env", "PORTAINER_API_URL"),
@@ -89,3 +105,7 @@ public sealed class AgentConfig {
         return total;
     }
 }
+
+public sealed record WatchConfig(
+    TimeSpan Interval,
+    string NotifyBotUrl = "");
