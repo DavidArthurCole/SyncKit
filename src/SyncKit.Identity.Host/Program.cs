@@ -273,6 +273,49 @@ if (profileEnabled) {
         var authorizeUrl = $"{linkApp.OAuth.Authority}/application/o/authorize/?{query}";
         return Results.Redirect(authorizeUrl);
     });
+
+    app.MapGet("/login/relink/{provider}", async (HttpContext ctx, string provider, OAuthStateStore states) => {
+        var userId = await ProfileAuth.TryGetUserIdAsync(ctx, sessionOptions!, app.Services.GetRequiredService<RevocationStore>().IsRevokedAsync, ctx.RequestAborted);
+        if (userId is null) return Results.Unauthorized();
+
+        var returnUrl = ctx.Request.Query["returnUrl"].ToString();
+        var linkApp = Program.ResolveApp(returnUrl, appConfigs);
+        if (linkApp is null) return Results.BadRequest("returnUrl not allowed");
+        if (!Program.KnownProviders.Contains(provider)) return Results.BadRequest("unknown provider");
+
+        var (query, state, verifier) = linkApp.OAuth.BuildAuthParams();
+        await states.SaveAsync(state, verifier, returnUrl, $"link:{userId}", ctx.RequestAborted);
+
+        var authorizeUrl = $"{linkApp.OAuth.Authority}/application/o/authorize/?{query}";
+        var flowUrl = Program.BuildFlowUrl(linkApp.OAuth.Authority, provider, authorizeUrl);
+
+        var idTokenHint = ctx.Request.Cookies.TryGetValue(Program.IdHintCookie, out var hint) ? hint : null;
+        if (string.IsNullOrEmpty(idTokenHint) || AuthentikOAuth.ReadAudienceFromIdToken(idTokenHint) != linkApp.OAuth.ClientId)
+            return Results.Redirect(flowUrl);
+
+        var endSessionUrl = linkApp.EndSessionUrl;
+        if (string.IsNullOrEmpty(endSessionUrl)) {
+            var configManager = ctx.RequestServices.GetService<ConfigurationManager<OpenIdConnectConfiguration>>();
+            if (configManager is null) return Results.Redirect(flowUrl);
+            try {
+                var discovery = await configManager.GetConfigurationAsync(ctx.RequestAborted);
+                endSessionUrl = discovery.EndSessionEndpoint;
+            } catch (Exception) {
+                return Results.Redirect(flowUrl);
+            }
+            if (string.IsNullOrEmpty(endSessionUrl)) return Results.Redirect(flowUrl);
+        }
+
+        var continueUrl = Program.BuildRelinkContinueUrl(linkApp.OAuth.CallbackUrl);
+        return Results.Redirect(Program.BuildRelinkLogoutUrl(endSessionUrl, idTokenHint, continueUrl, flowUrl));
+    });
+
+    app.MapGet("/login/relink/continue", (HttpContext ctx) => {
+        var target = ctx.Request.Query["state"].ToString();
+        return Program.IsAllowedRelinkTarget(target, authentikAuthority!, Program.KnownProviders)
+            ? Results.Redirect(target)
+            : Results.BadRequest("invalid relink target");
+    });
 }
 
 app.Use(async (ctx, next) => {
@@ -386,6 +429,37 @@ public partial class Program {
     public static string BuildFlowUrl(string authority, string provider, string authorizeUrl) {
         var flowSlug = $"{provider}-only-auth";
         return $"{authority}/if/flow/{flowSlug}/?next={Uri.EscapeDataString(authorizeUrl)}";
+    }
+
+    public static string BuildRelinkContinueUrl(string callbackUrl) =>
+        callbackUrl.EndsWith("/callback", StringComparison.Ordinal)
+            ? callbackUrl[..^"/callback".Length] + "/relink/continue"
+            : callbackUrl.TrimEnd('/') + "/relink/continue";
+
+    public static string BuildRelinkLogoutUrl(string endSessionUrl, string idTokenHint, string continueUrl, string flowUrl) {
+        var url = Append(endSessionUrl, $"id_token_hint={Uri.EscapeDataString(idTokenHint)}");
+        url = Append(url, $"post_logout_redirect_uri={Uri.EscapeDataString(continueUrl)}");
+        url = Append(url, $"state={Uri.EscapeDataString(flowUrl)}");
+        return url;
+
+        static string Append(string target, string param) {
+            var sep = target.Contains('?', StringComparison.Ordinal) ? "&" : "?";
+            return $"{target}{sep}{param}";
+        }
+    }
+
+    public static bool IsAllowedRelinkTarget(string? target, string authority, string[] knownProviders) {
+        if (string.IsNullOrEmpty(target)) return false;
+        if (!Uri.TryCreate(target, UriKind.Absolute, out var parsed)) return false;
+        if (parsed.Scheme != Uri.UriSchemeHttps && parsed.Scheme != Uri.UriSchemeHttp) return false;
+        var trimmed = authority.TrimEnd('/');
+        if (!knownProviders.Any(provider => target.StartsWith($"{trimmed}/if/flow/{provider}-only-auth/", StringComparison.Ordinal)))
+            return false;
+
+        var next = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(parsed.Query).TryGetValue("next", out var values)
+            ? values.ToString()
+            : null;
+        return !string.IsNullOrEmpty(next) && next.StartsWith($"{trimmed}/application/o/authorize/", StringComparison.Ordinal);
     }
 
     public static string BuildRedirectCallbackUrl(string returnUrl, string? code, string? error) {

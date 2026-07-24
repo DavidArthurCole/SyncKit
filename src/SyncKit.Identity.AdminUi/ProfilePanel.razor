@@ -86,6 +86,7 @@
                 provider,
                 linked,
                 Identity.StartLinkUrl(provider, ReturnUrl),
+                Identity.StartRelinkUrl(provider, ReturnUrl),
                 identity,
                 linked && _profile.Identities.Count > 1,
                 identity is not null ? EventCallback.Factory.Create(this, () => SelectAvatarAsync(identity)) : default,
@@ -99,7 +100,8 @@
         var items = KnownProviders.Select(provider => new ProfileLinkItem(
             provider,
             _profile!.Identities.Any(i => i.Provider == provider),
-            Identity.StartLinkUrl(provider, ReturnUrl)
+            Identity.StartLinkUrl(provider, ReturnUrl),
+            Identity.StartRelinkUrl(provider, ReturnUrl)
         )).ToList();
         return new ProfileLinkRowContext(items);
     }
@@ -195,8 +197,10 @@
         foreach (var item in ctx.Items) {
             builder.OpenElement(seq++, "a");
             builder.AddAttribute(seq++, "class", $"skp-link-provider {(item.Linked ? "skp-link-provider-linked" : "")}");
-            builder.AddAttribute(seq++, "href", item.Linked ? "#" : item.LinkUrl);
-            builder.AddAttribute(seq++, "aria-disabled", item.Linked);
+            builder.AddAttribute(seq++, "href", item.Linked ? item.RelinkUrl : item.LinkUrl);
+            if (item.Linked) {
+                builder.AddAttribute(seq++, "title", $"Link a different {Cap(item.Provider)} account (signs you out of the identity provider first)");
+            }
             builder.OpenElement(seq++, "img");
             builder.AddAttribute(seq++, "class", "skp-icon");
             builder.AddAttribute(seq++, "src", Identity.IconUrl(item.Provider));

@@ -102,6 +102,15 @@ public class IdentityApiClientTests {
     }
 
     [Fact]
+    public void StartRelinkUrl_BuildsRelativeUrl_WithProviderAndReturnUrl() {
+        var (client, _) = MakeClient(new HttpResponseMessage(HttpStatusCode.OK));
+
+        var url = client.StartRelinkUrl("github", "https://app.example.com/settings");
+
+        Assert.Equal("/login/relink/github?returnUrl=https%3A%2F%2Fapp.example.com%2Fsettings", url);
+    }
+
+    [Fact]
     public async Task UnlinkIdentityAsync_PostsToUnlinkRoute() {
         var (client, handler) = MakeClient(new HttpResponseMessage(HttpStatusCode.NoContent));
 

@@ -71,6 +71,35 @@ public class AppAuthConfigTests {
     }
 
     [Fact]
+    public void LoadFromDirectory_WithEndSessionUrl_PopulatesEndSessionUrl() {
+        var dir = WriteTempDir(("egi.app.0", """
+            Origin=https://egg-incognito.example.com
+            ClientId=egi-client
+            ClientSecret=egi-secret
+            CallbackUrl=https://identity.example.com/login/callback
+            EndSessionUrl=https://auth.example.com/application/o/egi/end-session/
+            """));
+
+        var result = AppAuthConfigLoader.LoadFromDirectory(dir, "https://auth.example.com");
+
+        Assert.Equal("https://auth.example.com/application/o/egi/end-session/", result["https://egg-incognito.example.com"].EndSessionUrl);
+    }
+
+    [Fact]
+    public void LoadFromDirectory_WithoutEndSessionUrl_EndSessionUrlIsNull() {
+        var dir = WriteTempDir(("egi.app.0", """
+            Origin=https://egg-incognito.example.com
+            ClientId=egi-client
+            ClientSecret=egi-secret
+            CallbackUrl=https://identity.example.com/login/callback
+            """));
+
+        var result = AppAuthConfigLoader.LoadFromDirectory(dir, "https://auth.example.com");
+
+        Assert.Null(result["https://egg-incognito.example.com"].EndSessionUrl);
+    }
+
+    [Fact]
     public void LoadFromDirectory_BlankLinesAndWhitespace_AreIgnored() {
         var dir = WriteTempDir(("egi.app.0", """
             Origin=https://egg-incognito.example.com

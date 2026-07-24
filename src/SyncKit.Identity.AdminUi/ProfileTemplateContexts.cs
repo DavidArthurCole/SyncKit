@@ -10,7 +10,7 @@ public sealed record ProfileIdentityItem(ProfileIdentityResponse Identity, bool 
 
 public sealed record ProfileIdentitiesContext(IReadOnlyList<ProfileIdentityItem> Items, string? Banner);
 
-public sealed record ProfileLinkItem(string Provider, bool Linked, string LinkUrl);
+public sealed record ProfileLinkItem(string Provider, bool Linked, string LinkUrl, string RelinkUrl);
 
 public sealed record ProfileLinkRowContext(IReadOnlyList<ProfileLinkItem> Items);
 
@@ -18,6 +18,7 @@ public sealed record ProfileProviderItem(
     string Provider,
     bool Linked,
     string LinkUrl,
+    string RelinkUrl,
     ProfileIdentityResponse? Identity,
     bool CanUnlink,
     EventCallback OnSelectAvatar,

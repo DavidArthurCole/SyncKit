@@ -11,14 +11,18 @@ public sealed class AuthentikOAuth(string authority, string clientId, string cli
 
     public string Authority { get; } = authority.TrimEnd('/');
 
+    public string ClientId { get; } = clientId;
+
+    public string CallbackUrl { get; } = callbackUrl;
+
     public (string Query, string State, string CodeVerifier) BuildAuthParams() {
         var state = DiscordOAuth.RandomHex(16);
         var verifier = GenerateCodeVerifier();
         var challenge = ComputeCodeChallenge(verifier);
 
         var query = new Dictionary<string, string> {
-            ["client_id"] = clientId,
-            ["redirect_uri"] = callbackUrl,
+            ["client_id"] = ClientId,
+            ["redirect_uri"] = CallbackUrl,
             ["response_type"] = "code",
             ["scope"] = "openid+profile+email+discord_id",
             ["state"] = state,
@@ -32,11 +36,11 @@ public sealed class AuthentikOAuth(string authority, string clientId, string cli
 
     public async Task<AuthentikTokenResult> HandleCallbackAsync(string code, string codeVerifier, CancellationToken ct = default) {
         var tokenResp = await Http.PostAsync($"{Authority}/application/o/token/", new FormUrlEncodedContent(new Dictionary<string, string> {
-            ["client_id"] = clientId,
+            ["client_id"] = ClientId,
             ["client_secret"] = clientSecret,
             ["grant_type"] = "authorization_code",
             ["code"] = code,
-            ["redirect_uri"] = callbackUrl,
+            ["redirect_uri"] = CallbackUrl,
             ["code_verifier"] = codeVerifier,
         }), ct);
         tokenResp.EnsureSuccessStatusCode();
@@ -69,13 +73,30 @@ public sealed class AuthentikOAuth(string authority, string clientId, string cli
     }
 
     public static string? ReadSessionIdFromIdToken(string? idToken) {
+        using var doc = DecodeIdTokenPayload(idToken);
+        if (doc is null) return null;
+        return doc.RootElement.TryGetProperty("sid", out var sidEl) ? sidEl.GetString() : null;
+    }
+
+    public static string? ReadAudienceFromIdToken(string? idToken) {
+        using var doc = DecodeIdTokenPayload(idToken);
+        if (doc is null) return null;
+        if (!doc.RootElement.TryGetProperty("aud", out var audEl)) return null;
+        if (audEl.ValueKind == JsonValueKind.String) return audEl.GetString();
+        if (audEl.ValueKind == JsonValueKind.Array) {
+            foreach (var el in audEl.EnumerateArray())
+                if (el.ValueKind == JsonValueKind.String) return el.GetString();
+        }
+        return null;
+    }
+
+    private static JsonDocument? DecodeIdTokenPayload(string? idToken) {
         if (string.IsNullOrEmpty(idToken)) return null;
         var parts = idToken.Split('.');
         if (parts.Length < 2) return null;
         try {
             var payload = Convert.FromBase64String(PadBase64Url(parts[1]));
-            using var doc = JsonDocument.Parse(payload);
-            return doc.RootElement.TryGetProperty("sid", out var sidEl) ? sidEl.GetString() : null;
+            return JsonDocument.Parse(payload);
         } catch (Exception) {
             return null;
         }

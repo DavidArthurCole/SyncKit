@@ -2,7 +2,7 @@ using SyncKit.Auth;
 
 namespace SyncKit.Identity.Host;
 
-public sealed record AppAuthConfig(string Origin, AuthentikOAuth OAuth);
+public sealed record AppAuthConfig(string Origin, AuthentikOAuth OAuth, string? EndSessionUrl = null);
 
 public static class AppAuthConfigLoader {
     private static readonly string[] RequiredKeys = ["Origin", "ClientId", "ClientSecret", "CallbackUrl"];
@@ -16,7 +16,7 @@ public static class AppAuthConfigLoader {
                 throw new InvalidOperationException($"{filePath} missing required key(s): {string.Join(", ", missing)}");
 
             var oauth = new AuthentikOAuth(authentikAuthority, values["ClientId"], values["ClientSecret"], values["CallbackUrl"]);
-            result[values["Origin"]] = new AppAuthConfig(values["Origin"], oauth);
+            result[values["Origin"]] = new AppAuthConfig(values["Origin"], oauth, values.GetValueOrDefault("EndSessionUrl"));
         }
         return result;
     }
