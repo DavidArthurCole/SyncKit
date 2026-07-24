@@ -271,8 +271,7 @@ if (profileEnabled) {
         await states.SaveAsync(state, verifier, returnUrl, $"link:{userId}", ctx.RequestAborted);
 
         var authorizeUrl = $"{linkApp.OAuth.Authority}/application/o/authorize/?{query}";
-        var flowUrl = Program.BuildFlowUrl(linkApp.OAuth.Authority, provider, authorizeUrl);
-        return Results.Redirect(flowUrl);
+        return Results.Redirect(authorizeUrl);
     });
 }
 
